@@ -55,11 +55,15 @@ async function init() {
 
     const info = document.createElement('div');
     info.className = 'site-info';
-    if (isCurrent) {
-      const dot = document.createElement('div');
-      dot.className = 'active-dot';
-      info.appendChild(dot);
-    }
+
+    const favicon = document.createElement('img');
+    favicon.className = 'site-favicon';
+    favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
+    favicon.alt = '';
+    favicon.width = 16;
+    favicon.height = 16;
+    info.appendChild(favicon);
+
     const nameEl = document.createElement('span');
     nameEl.className = 'site-name';
     nameEl.textContent = site.name;
