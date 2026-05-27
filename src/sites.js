@@ -1,6 +1,7 @@
 // To add a new site: append an entry to this array.
 // id:        unique key, used in storage
 // name:      display name in popup
+// category:  'video' | 'social' | 'shopping' | 'other'
 // hostnames: list of hostnames (with or without www)
 // selectors: CSS selectors for recommendation containers to block
 // paths:     (optional) only apply on these URL paths; omit to apply everywhere
@@ -12,9 +13,11 @@
 //                      Use when both hiding and removing collapse the container and
 //                      trigger more loads (e.g. X/Twitter).
 const SITES = [
+  // ── 视频 ──────────────────────────────────────────────────────────────────
   {
     id: 'youtube',
     name: 'YouTube',
+    category: 'video',
     hostnames: ['youtube.com', 'www.youtube.com'],
     selectors: [
       'ytd-rich-grid-renderer',                      // Home feed grid
@@ -26,6 +29,7 @@ const SITES = [
   {
     id: 'bilibili',
     name: 'Bilibili',
+    category: 'video',
     hostnames: ['bilibili.com', 'www.bilibili.com'],
     selectors: [
       '.recommended-container_floor-aside',  // Home recommendations
@@ -35,31 +39,190 @@ const SITES = [
     ],
   },
   {
+    id: 'douyin',
+    name: '抖音',
+    category: 'video',
+    hostnames: ['douyin.com', 'www.douyin.com'],
+    selectors: [
+      '[class*="recommend-container"]',
+      '[class*="videoFeedV2"]',
+      '[data-e2e="feed-active-video"]',
+    ],
+  },
+  {
+    id: 'kuaishou',
+    name: '快手',
+    category: 'video',
+    hostnames: ['kuaishou.com', 'www.kuaishou.com'],
+    selectors: [
+      '.main-content',
+      '[class*="feedList"]',
+      '[class*="videoItem"]',
+    ],
+  },
+  {
+    id: 'tiktok',
+    name: 'TikTok',
+    category: 'video',
+    hostnames: ['tiktok.com', 'www.tiktok.com'],
+    selectors: [
+      '[data-e2e="recommend-list-item-container"]',
+      '[class*="DivVideoFeedV2"]',
+      '[class*="recommend-feed"]',
+    ],
+  },
+  {
+    id: 'twitch',
+    name: 'Twitch',
+    category: 'video',
+    hostnames: ['twitch.tv', 'www.twitch.tv'],
+    paths: ['/'],
+    selectors: [
+      '[data-target="directory-first-time-user-experience__discover"]',
+      '.front-page-discovery',
+      '[data-a-target="home-live-container"]',
+      '.tw-tower',
+    ],
+  },
+
+  // ── 社交 ──────────────────────────────────────────────────────────────────
+  {
     id: 'xiaohongshu',
     name: '小红书',
+    category: 'social',
     hostnames: ['xiaohongshu.com', 'www.xiaohongshu.com'],
     selectors: [
       '.exploreFeeds',
-      // '.feeds-container',       // Main feed
-      // '.note-item',             // Individual note items
-      '#homefeed',              // Home feed wrapper
+      '#homefeed',
     ],
   },
   {
     id: 'x',
     name: 'X (Twitter)',
+    category: 'social',
     hostnames: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
     paths: ['/', '/home'],
     strategy: 'spacer',
-    // The timeline section to replace with a placeholder. Our placeholder is
-    // min-height:100vh so the infinite-scroll sentinel is always below the fold.
     spacerTarget: '[data-testid="primaryColumn"] section',
-    // Block the GraphQL HomeTimeline fetch as a secondary defense.
     fetchBlockPatterns: ['HomeTimeline'],
-    // These elements live outside the managed section and are hidden via CSS.
     selectors: [
-      '[data-testid="sidebarColumn"]',  // right sidebar (who to follow, trends)
-      '[data-testid="pillLabel"]',       // "新推文" / "已发布" floating refresh pill
+      '[data-testid="sidebarColumn"]',
+      '[data-testid="pillLabel"]',
+    ],
+  },
+  {
+    id: 'weibo',
+    name: '微博',
+    category: 'social',
+    hostnames: ['weibo.com', 'www.weibo.com'],
+    selectors: [
+      '.WB_feed_type',
+      '[node-type="feed_list"]',
+      '.main-wrap .WB_feed',
+    ],
+  },
+  {
+    id: 'zhihu',
+    name: '知乎',
+    category: 'social',
+    hostnames: ['zhihu.com', 'www.zhihu.com'],
+    selectors: [
+      '.Topstory-container',
+      '[class*="TopstoryItem"]',
+      '.css-1yuhvjn',
+    ],
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram',
+    category: 'social',
+    hostnames: ['instagram.com', 'www.instagram.com'],
+    selectors: [
+      'main[role="main"] article',
+      '[role="main"] ._aano',
+      'section main div[class*="x9f619"]',
+    ],
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    category: 'social',
+    hostnames: ['facebook.com', 'www.facebook.com'],
+    selectors: [
+      '[role="feed"]',
+      '[data-pagelet="FeedUnit"]',
+    ],
+  },
+  {
+    id: 'threads',
+    name: 'Threads',
+    category: 'social',
+    hostnames: ['threads.net', 'www.threads.net'],
+    selectors: [
+      '[role="main"] [class*="x9f619"] > div > div',
+      '[data-pressable-container="true"]',
+    ],
+  },
+  {
+    id: 'reddit',
+    name: 'Reddit',
+    category: 'social',
+    hostnames: ['reddit.com', 'www.reddit.com'],
+    selectors: [
+      'shreddit-feed',
+      '[data-testid="post-container"]',
+      '.feed-unit',
+    ],
+  },
+  {
+    id: 'quora',
+    name: 'Quora',
+    category: 'social',
+    hostnames: ['quora.com', 'www.quora.com'],
+    selectors: [
+      '.q-feed',
+      '[class*="FeedItem"]',
+      '.puppeteer_test_question_main',
+    ],
+  },
+
+  // ── 购物 ──────────────────────────────────────────────────────────────────
+  {
+    id: 'taobao',
+    name: '淘宝',
+    category: 'shopping',
+    hostnames: ['taobao.com', 'www.taobao.com'],
+    selectors: [
+      '[class*="recommend-products"]',
+      '[class*="waterfall"]',
+      '#J_recommend_area',
+      '.tbh-card-list',
+    ],
+  },
+  {
+    id: 'jd',
+    name: '京东',
+    category: 'shopping',
+    hostnames: ['jd.com', 'www.jd.com'],
+    selectors: [
+      '#J_SaleAndCoupon',
+      '.rec-goods-list',
+      '[class*="floor-goods"]',
+      '.goods-recommend',
+    ],
+  },
+
+  // ── 其他 ──────────────────────────────────────────────────────────────────
+  {
+    id: 'baidu',
+    name: '百度',
+    category: 'other',
+    hostnames: ['baidu.com', 'www.baidu.com'],
+    selectors: [
+      '#feed_center',
+      '.feed-content',
+      '[class*="feed-item"]',
+      '.com-feed-list',
     ],
   },
 ];

@@ -1,5 +1,12 @@
 'use strict';
 
+const CATEGORY_LABELS = {
+  video:    '视频',
+  social:   '社交',
+  shopping: '购物',
+  other:    '其他',
+};
+
 async function getDisabledSites() {
   return new Promise(resolve =>
     chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) => resolve(disabledSites))
@@ -34,6 +41,50 @@ function notifyActiveTab(siteId, enabled) {
   });
 }
 
+function createSiteItem(site, enabled, isCurrent) {
+  const item = document.createElement('div');
+  item.className = `site-item${isCurrent ? ' is-current' : ''}`;
+
+  const info = document.createElement('div');
+  info.className = 'site-info';
+
+  const favicon = document.createElement('img');
+  favicon.className = 'site-favicon';
+  favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
+  favicon.alt = '';
+  favicon.width = 16;
+  favicon.height = 16;
+  info.appendChild(favicon);
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'site-name';
+  nameEl.textContent = site.name;
+  info.appendChild(nameEl);
+
+  const label = document.createElement('label');
+  label.className = 'toggle';
+  label.title = enabled ? '点击关闭屏蔽' : '点击开启屏蔽';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = enabled;
+  checkbox.setAttribute('aria-label', `${site.name} 推荐屏蔽`);
+  checkbox.addEventListener('change', async () => {
+    label.title = checkbox.checked ? '点击关闭屏蔽' : '点击开启屏蔽';
+    await setDisabledSites(site.id, checkbox.checked);
+    notifyActiveTab(site.id, checkbox.checked);
+  });
+
+  const slider = document.createElement('span');
+  slider.className = 'slider';
+
+  label.appendChild(checkbox);
+  label.appendChild(slider);
+  item.appendChild(info);
+  item.appendChild(label);
+  return item;
+}
+
 async function init() {
   const [disabledSites, activeHostname] = await Promise.all([
     getDisabledSites(),
@@ -46,51 +97,28 @@ async function init() {
 
   const list = document.getElementById('siteList');
 
+  const grouped = {};
   for (const site of SITES) {
-    const enabled = !disabledSites.includes(site.id);
-    const isCurrent = site.id === activeSiteId;
+    const cat = site.category ?? 'other';
+    (grouped[cat] = grouped[cat] ?? []).push(site);
+  }
 
-    const item = document.createElement('div');
-    item.className = `site-item${isCurrent ? ' is-current' : ''}`;
+  const categoryOrder = ['video', 'social', 'shopping', 'other'];
 
-    const info = document.createElement('div');
-    info.className = 'site-info';
+  for (const cat of categoryOrder) {
+    const sites = grouped[cat];
+    if (!sites?.length) continue;
 
-    const favicon = document.createElement('img');
-    favicon.className = 'site-favicon';
-    favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
-    favicon.alt = '';
-    favicon.width = 16;
-    favicon.height = 16;
-    info.appendChild(favicon);
+    const header = document.createElement('div');
+    header.className = 'category-header';
+    header.textContent = CATEGORY_LABELS[cat] ?? cat;
+    list.appendChild(header);
 
-    const nameEl = document.createElement('span');
-    nameEl.className = 'site-name';
-    nameEl.textContent = site.name;
-    info.appendChild(nameEl);
-
-    const label = document.createElement('label');
-    label.className = 'toggle';
-    label.title = enabled ? '点击关闭屏蔽' : '点击开启屏蔽';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = enabled;
-    checkbox.setAttribute('aria-label', `${site.name} 推荐屏蔽`);
-    checkbox.addEventListener('change', async () => {
-      label.title = checkbox.checked ? '点击关闭屏蔽' : '点击开启屏蔽';
-      await setDisabledSites(site.id, checkbox.checked);
-      notifyActiveTab(site.id, checkbox.checked);
-    });
-
-    const slider = document.createElement('span');
-    slider.className = 'slider';
-
-    label.appendChild(checkbox);
-    label.appendChild(slider);
-    item.appendChild(info);
-    item.appendChild(label);
-    list.appendChild(item);
+    for (const site of sites) {
+      const enabled = !disabledSites.includes(site.id);
+      const isCurrent = site.id === activeSiteId;
+      list.appendChild(createSiteItem(site, enabled, isCurrent));
+    }
   }
 }
 
