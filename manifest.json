@@ -24,6 +24,17 @@
       ],
       "js": ["src/sites.js", "src/content.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://x.com/*",
+        "*://*.x.com/*",
+        "*://twitter.com/*",
+        "*://*.twitter.com/*"
+      ],
+      "js": ["src/x-fetch-blocker.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "background": {

@@ -86,25 +86,7 @@
   // so the sentinel is always pushed below the fold. We also block the
   // HomeTimeline fetch as a secondary defense.
 
-  function injectFetchBlocker() {
-    const patterns = JSON.stringify(site.fetchBlockPatterns || []);
-    const script = document.createElement('script');
-    script.textContent = `(function(){
-  var P=${patterns},A="${FETCH_ATTR}",F=window.fetch;
-  if(!F)return;
-  window.fetch=function(input,init){
-    if(document.documentElement.hasAttribute(A)){
-      var url=typeof input==="string"?input:input instanceof URL?input.href:input&&input.url||"";
-      if(P.some(function(p){return url.indexOf(p)!==-1}))return new Promise(function(){});
-    }
-    return F.apply(this,arguments);
-  };
-})();`;
-    document.documentElement.appendChild(script);
-    script.remove();
-  }
-
-  function buildPlaceholder() {
+function buildPlaceholder() {
     const ph = document.createElement('div');
     ph.id = PLACEHOLDER_ID;
     // min-height:100vh ensures the sentinel (placed after our placeholder by X)
@@ -184,12 +166,11 @@
 
   // ─── Initialisation ───────────────────────────────────────────────────────────
 
-  // For spacer strategy: inject the fetch blocker synchronously (before X's own
-  // scripts load) and set the attribute optimistically. The storage check below
-  // will quickly remove the attribute if the site is actually disabled.
+  // For spacer strategy: set the attribute optimistically so that x-fetch-blocker.js
+  // (which runs in the MAIN world via manifest.json) starts blocking immediately.
+  // The storage check below will quickly remove the attribute if the site is disabled.
   if (strategy === 'spacer') {
     document.documentElement.setAttribute(FETCH_ATTR, '');
-    injectFetchBlocker();
   }
 
   chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) => {

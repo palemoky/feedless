@@ -56,7 +56,10 @@ const SITES = [
     spacerTarget: '[data-testid="primaryColumn"] section',
     // Block the GraphQL HomeTimeline fetch as a secondary defense.
     fetchBlockPatterns: ['HomeTimeline'],
-    // The sidebar is hidden with normal CSS (it doesn't affect scroll detection).
-    selectors: ['[data-testid="sidebarColumn"]'],
+    // These elements live outside the managed section and are hidden via CSS.
+    selectors: [
+      '[data-testid="sidebarColumn"]',  // right sidebar (who to follow, trends)
+      '[data-testid="pillLabel"]',       // "新推文" / "已发布" floating refresh pill
+    ],
   },
 ];
