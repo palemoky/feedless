@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Feedless</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      width: 280px;
+      background: #ffffff;
+      color: #1a1a1a;
+    }
+
+    .header {
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111;
+      letter-spacing: 0.3px;
+    }
+    .header p {
+      font-size: 11px;
+      color: #999;
+      margin-top: 2px;
+    }
+
+    .site-list { padding: 4px 0; }
+
+    .site-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 20px;
+      transition: background 0.1s;
+      cursor: default;
+    }
+    .site-item:hover { background: #f5f5f5; }
+
+    .site-info { display: flex; align-items: center; gap: 8px; }
+
+    .active-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #16a34a;
+      flex-shrink: 0;
+    }
+
+    .site-name {
+      font-size: 13.5px;
+      color: #333;
+    }
+    .site-item.is-current .site-name {
+      color: #111;
+      font-weight: 500;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 38px;
+      height: 21px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #d1d5db;
+      border-radius: 21px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 15px;
+      height: 15px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .slider { background: #16a34a; }
+    .toggle input:checked + .slider::before {
+      transform: translateX(17px);
+    }
+    .toggle input:focus-visible + .slider {
+      outline: 2px solid #16a34a;
+      outline-offset: 1px;
+    }
+
+    .footer {
+      padding: 10px 20px;
+      border-top: 1px solid #ebebeb;
+      font-size: 10.5px;
+      color: #aaa;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Feedless</h1>
+    <p>屏蔽推荐，专注当下</p>
+  </div>
+  <div class="site-list" id="siteList"></div>
+  <div class="footer">开启 = 屏蔽算法推荐内容</div>
+  <script src="sites.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

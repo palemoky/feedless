@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Feedless",
+  "version": "1.0.0",
+  "description": "Block algorithmic recommendations on social media to help you stay focused.",
+  "permissions": ["storage", "tabs"],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Feedless"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://bilibili.com/*",
+        "*://*.bilibili.com/*",
+        "*://xiaohongshu.com/*",
+        "*://*.xiaohongshu.com/*",
+        "*://x.com/*",
+        "*://*.x.com/*",
+        "*://twitter.com/*",
+        "*://*.twitter.com/*"
+      ],
+      "js": ["src/sites.js", "src/content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
