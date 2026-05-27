@@ -14,45 +14,76 @@
     }
 
     .header {
-      padding: 16px 20px 14px;
+      padding: 12px 16px 10px;
       border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
     }
     .header h1 {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       color: #111;
       letter-spacing: 0.3px;
     }
     .header p {
       font-size: 11px;
-      color: #999;
-      margin-top: 2px;
+      color: #bbb;
     }
 
-    .site-list { padding: 4px 0; }
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid #e8e8e8;
+      padding: 0 12px;
+      gap: 2px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 7px 4px 6px;
+      font-size: 12px;
+      color: #999;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: #555; }
+    .tab-btn.active {
+      color: #16a34a;
+      font-weight: 500;
+      border-bottom-color: #16a34a;
+    }
+
+    /* Site list panel */
+    .tab-panel { display: none; padding: 2px 0; }
+    .tab-panel.active { display: block; }
 
     .site-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 11px 20px;
+      padding: 8px 16px;
       transition: background 0.1s;
       cursor: default;
     }
     .site-item:hover { background: #f5f5f5; }
 
-    .site-info { display: flex; align-items: center; gap: 9px; }
+    .site-info { display: flex; align-items: center; gap: 8px; }
 
     .site-favicon {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border-radius: 3px;
       flex-shrink: 0;
       object-fit: contain;
     }
 
     .site-name {
-      font-size: 13.5px;
+      font-size: 13px;
       color: #333;
     }
     .site-item.is-current .site-name {
@@ -68,8 +99,8 @@
     /* Toggle switch */
     .toggle {
       position: relative;
-      width: 38px;
-      height: 21px;
+      width: 34px;
+      height: 19px;
       flex-shrink: 0;
     }
     .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
@@ -77,15 +108,15 @@
       position: absolute;
       inset: 0;
       background: #d1d5db;
-      border-radius: 21px;
+      border-radius: 19px;
       cursor: pointer;
       transition: background 0.2s;
     }
     .slider::before {
       content: '';
       position: absolute;
-      width: 15px;
-      height: 15px;
+      width: 13px;
+      height: 13px;
       left: 3px;
       top: 3px;
       background: #fff;
@@ -94,34 +125,33 @@
       transition: transform 0.2s;
     }
     .toggle input:checked + .slider { background: #16a34a; }
-    .toggle input:checked + .slider::before {
-      transform: translateX(17px);
-    }
+    .toggle input:checked + .slider::before { transform: translateX(15px); }
     .toggle input:focus-visible + .slider {
       outline: 2px solid #16a34a;
       outline-offset: 1px;
     }
 
-    .category-header {
-      padding: 8px 20px 4px;
-      font-size: 10px;
-      font-weight: 600;
-      color: #aaa;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-    }
-    .category-header:not(:first-child) {
-      border-top: 1px solid #f0f0f0;
-      margin-top: 2px;
-      padding-top: 10px;
-    }
-
     .footer {
-      padding: 10px 20px;
+      padding: 8px 12px;
       border-top: 1px solid #ebebeb;
-      font-size: 10.5px;
-      color: #aaa;
-      text-align: center;
+      display: flex;
+      gap: 6px;
+    }
+    .footer-btn {
+      flex: 1;
+      padding: 5px 0;
+      font-size: 11px;
+      font-family: inherit;
+      color: #888;
+      background: #f5f5f5;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .footer-btn:hover {
+      background: #ececec;
+      color: #333;
     }
   </style>
 </head>
@@ -130,8 +160,12 @@
     <h1>Feedless</h1>
     <p>屏蔽推荐，专注当下</p>
   </div>
-  <div class="site-list" id="siteList"></div>
-  <div class="footer">开启 = 屏蔽算法推荐内容</div>
+  <div class="tab-bar" id="tabBar"></div>
+  <div id="tabPanels"></div>
+  <div class="footer">
+    <button class="footer-btn" id="btnFeedback">反馈问题</button>
+    <button class="footer-btn" id="btnAbout">关于项目</button>
+  </div>
   <script src="sites.js"></script>
   <script src="popup.js"></script>
 </body>

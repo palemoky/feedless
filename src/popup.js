@@ -1,11 +1,11 @@
 'use strict';
 
-const CATEGORY_LABELS = {
-  video:    '视频',
-  social:   '社交',
-  shopping: '购物',
-  other:    '其他',
-};
+const CATEGORIES = [
+  { id: 'video',    label: '视频' },
+  { id: 'social',   label: '社交' },
+  { id: 'shopping', label: '购物' },
+  { id: 'other',    label: '其他' },
+];
 
 async function getDisabledSites() {
   return new Promise(resolve =>
@@ -52,8 +52,8 @@ function createSiteItem(site, enabled, isCurrent) {
   favicon.className = 'site-favicon';
   favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
   favicon.alt = '';
-  favicon.width = 16;
-  favicon.height = 16;
+  favicon.width = 14;
+  favicon.height = 14;
   info.appendChild(favicon);
 
   const nameEl = document.createElement('span');
@@ -85,41 +85,73 @@ function createSiteItem(site, enabled, isCurrent) {
   return item;
 }
 
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.tab === tabId);
+  });
+  chrome.storage.local.set({ activeTab: tabId });
+}
+
 async function init() {
-  const [disabledSites, activeHostname] = await Promise.all([
+  const [disabledSites, activeHostname, { activeTab: savedTab }] = await Promise.all([
     getDisabledSites(),
     getActiveTabHostname(),
+    new Promise(resolve => chrome.storage.local.get({ activeTab: 'video' }, resolve)),
   ]);
 
-  const activeSiteId = SITES.find(s =>
+  const activeSite = SITES.find(s =>
     s.hostnames.some(h => h.replace(/^www\./, '') === activeHostname)
-  )?.id ?? null;
+  );
+  const activeSiteId = activeSite?.id ?? null;
 
-  const list = document.getElementById('siteList');
-
+  // Group sites by category
   const grouped = {};
   for (const site of SITES) {
     const cat = site.category ?? 'other';
     (grouped[cat] = grouped[cat] ?? []).push(site);
   }
 
-  const categoryOrder = ['video', 'social', 'shopping', 'other'];
+  const tabBar = document.getElementById('tabBar');
+  const tabPanels = document.getElementById('tabPanels');
 
-  for (const cat of categoryOrder) {
-    const sites = grouped[cat];
+  // Determine which tab to open: prefer the tab containing the active site
+  const initialTab = activeSite?.category ?? savedTab ?? 'video';
+
+  for (const { id, label } of CATEGORIES) {
+    const sites = grouped[id];
     if (!sites?.length) continue;
 
-    const header = document.createElement('div');
-    header.className = 'category-header';
-    header.textContent = CATEGORY_LABELS[cat] ?? cat;
-    list.appendChild(header);
+    // Tab button
+    const btn = document.createElement('button');
+    btn.className = `tab-btn${id === initialTab ? ' active' : ''}`;
+    btn.dataset.tab = id;
+    btn.textContent = label;
+    btn.addEventListener('click', () => switchTab(id));
+    tabBar.appendChild(btn);
+
+    // Tab panel
+    const panel = document.createElement('div');
+    panel.className = `tab-panel${id === initialTab ? ' active' : ''}`;
+    panel.dataset.tab = id;
 
     for (const site of sites) {
       const enabled = !disabledSites.includes(site.id);
       const isCurrent = site.id === activeSiteId;
-      list.appendChild(createSiteItem(site, enabled, isCurrent));
+      panel.appendChild(createSiteItem(site, enabled, isCurrent));
     }
+
+    tabPanels.appendChild(panel);
   }
 }
+
+document.getElementById('btnFeedback').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://github.com/palemoky/feedless/issues' });
+});
+document.getElementById('btnAbout').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://github.com/palemoky/feedless' });
+});
 
 init();
