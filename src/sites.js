@@ -57,7 +57,7 @@ const SITES = [
     category: "video",
     hostnames: ["douyin.com", "www.douyin.com"],
     selectors: [
-      '.discover-tab-container', // 抖音精选首页推荐
+      ".discover-tab-container", // 抖音精选首页推荐
       '[class*="recommend-container"]',
       '[class*="videoFeedV2"]',
       '[data-e2e="feed-active-video"]',
@@ -100,20 +100,6 @@ const SITES = [
       '[class*="recommend-feed"]',
     ],
   },
-  {
-    id: "twitch",
-    name: "Twitch",
-    category: "video",
-    hostnames: ["twitch.tv", "www.twitch.tv"],
-    paths: ["/"],
-    selectors: [
-      '[data-target="directory-first-time-user-experience__discover"]',
-      ".front-page-discovery",
-      '[data-a-target="home-live-container"]',
-      ".tw-tower",
-    ],
-  },
-
   // ── 社交 ──────────────────────────────────────────────────────────────────
   {
     id: "xiaohongshu",
@@ -171,45 +157,6 @@ const SITES = [
       'main[role="main"] article',
       '[role="main"] ._aano',
       'section main div[class*="x9f619"]',
-    ],
-  },
-  {
-    id: "facebook",
-    name: "Facebook",
-    category: "social",
-    hostnames: ["facebook.com", "www.facebook.com"],
-    selectors: ['[role="feed"]'],
-  },
-  {
-    id: "threads",
-    name: "Threads",
-    category: "social",
-    hostnames: ["threads.com", "www.threads.com"],
-    selectors: [
-      '[role="main"] [class*="x9f619"] > div > div',
-      '[data-pressable-container="true"]',
-    ],
-  },
-  {
-    id: "reddit",
-    name: "Reddit",
-    category: "social",
-    hostnames: ["reddit.com", "www.reddit.com"],
-    selectors: [
-      "shreddit-feed",
-      '[data-testid="post-container"]',
-      ".feed-unit",
-    ],
-  },
-  {
-    id: "quora",
-    name: "Quora",
-    category: "social",
-    hostnames: ["quora.com", "www.quora.com"],
-    selectors: [
-      ".q-feed",
-      '[class*="FeedItem"]',
-      ".puppeteer_test_question_main",
     ],
   },
 
