@@ -22,9 +22,7 @@ const SITES = [
     hostnames: ['bilibili.com', 'www.bilibili.com'],
     selectors: [
       '.recommended-container_floor-aside',  // Home recommendations
-      '.feed-card',                          // Feed cards
-      '.video-recommend',                    // Video page sidebar recs
-      '.rcmd-box',                           // Recommended box
+      '.recommend-list-v1',                  // Video page sidebar recs
     ],
   },
   {
@@ -111,10 +109,13 @@ const SITES = [
     nameIntl: 'Weibo',
     category: 'social',
     hostnames: ['weibo.com', 'www.weibo.com'],
+    // collapseChildren: selectors target containers whose children should be hidden,
+    // but the containers themselves must remain in the DOM to avoid triggering
+    // virtual-scroll / IntersectionObserver infinite-load loops.
+    collapseChildren: true,
     selectors: [
-      '.WB_feed_type',
-      '[node-type="feed_list"]',
-      '.main-wrap .WB_feed',
+      '.vue-recycle-scroller__item-wrapper',
+      '.recommend',
     ],
   },
   {
@@ -124,9 +125,9 @@ const SITES = [
     category: 'social',
     hostnames: ['zhihu.com', 'www.zhihu.com'],
     selectors: [
-      '.Topstory-container',
-      '[class*="TopstoryItem"]',
-      '.css-1yuhvjn',
+      '[class~="woo-box-flex"][class*="_content_"][class*="_noside1_"]', // Home feed
+      '.Topstory-container', // Home feed
+      '.HotSearchCard',      // Hot search card
     ],
   },
   {

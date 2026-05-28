@@ -74,7 +74,10 @@
     if ((!site.selectors?.length && !site.extraCSS) || document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.textContent = (site.selectors ?? []).map(s => `${s}{display:none!important}`).join('') + (site.extraCSS ?? '');
+    const selectorCSS = (site.selectors ?? []).map(s =>
+      site.collapseChildren ? `${s}>*{display:none!important}` : `${s}{display:none!important}`
+    ).join('');
+    style.textContent = selectorCSS + (site.extraCSS ?? '');
     document.documentElement.appendChild(style);
   }
 
