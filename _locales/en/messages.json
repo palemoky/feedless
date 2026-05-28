@@ -13,5 +13,12 @@
   "ariaLabel":      {
     "message": "$SITE$ recommendation blocking",
     "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
-  }
+  },
+  "tabReminder":      { "message": "Remind" },
+  "reminderOff":      { "message": "Off" },
+  "reminderMinutes":  {
+    "message": "$MINS$ min",
+    "placeholders": { "mins": { "content": "$1", "example": "10" } }
+  },
+  "reminderHint":     { "message": "Full-screen alert after spending time on a blocked site" }
 }

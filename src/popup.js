@@ -1,6 +1,6 @@
 'use strict';
 
-const t = key => chrome.i18n.getMessage(key);
+const t = (key, subs) => chrome.i18n.getMessage(key, subs);
 
 // Use native name only for Chinese locales; fall back to nameIntl otherwise.
 const isZh = chrome.i18n.getUILanguage().toLowerCase().startsWith('zh');
@@ -12,6 +12,9 @@ const CATEGORIES = [
   { id: 'shopping', label: t('catShopping') },
   { id: 'other',    label: t('catOther') },
 ];
+
+const REMINDER_TAB_ID = '__reminder__';
+const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60];
 
 async function getDisabledSites() {
   return new Promise(resolve =>
@@ -101,11 +104,63 @@ function switchTab(tabId) {
   chrome.storage.local.set({ activeTab: tabId });
 }
 
+async function getReminderIntervals() {
+  return new Promise(resolve =>
+    chrome.storage.sync.get({ reminderIntervals: {} }, ({ reminderIntervals }) => resolve(reminderIntervals))
+  );
+}
+
+function buildReminderPanel(reminderIntervals) {
+  const container = document.createElement('div');
+  container.className = 'reminder-panel';
+
+  for (const { id, label } of CATEGORIES) {
+    const row = document.createElement('div');
+    row.className = 'reminder-row';
+
+    const catLabel = document.createElement('span');
+    catLabel.className = 'reminder-cat';
+    catLabel.textContent = label;
+
+    const select = document.createElement('select');
+    select.className = 'reminder-select';
+
+    for (const mins of REMINDER_OPTIONS) {
+      const opt = document.createElement('option');
+      opt.value = mins;
+      opt.textContent = mins === 0 ? t('reminderOff') : t('reminderMinutes', [String(mins)]);
+      opt.selected = (reminderIntervals[id] || 0) === mins;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', async () => {
+      const updated = await new Promise(resolve =>
+        chrome.storage.sync.get({ reminderIntervals: {} }, ({ reminderIntervals: ri }) => resolve(ri))
+      );
+      updated[id] = Number(select.value);
+      chrome.storage.sync.set({ reminderIntervals: updated });
+      chrome.runtime.sendMessage({ type: 'feedless:reminderUpdate' }).catch(() => {});
+    });
+
+    row.appendChild(catLabel);
+    row.appendChild(select);
+    container.appendChild(row);
+  }
+
+  const hint = document.createElement('p');
+  hint.className = 'reminder-hint';
+  hint.textContent = t('reminderHint');
+  container.appendChild(hint);
+
+  return container;
+}
+
 async function init() {
-  const [disabledSites, activeHostname, { activeTab: savedTab }] = await Promise.all([
+  const [disabledSites, activeHostname, { activeTab: savedTab }, reminderIntervals] = await Promise.all([
     getDisabledSites(),
     getActiveTabHostname(),
     new Promise(resolve => chrome.storage.local.get({ activeTab: 'video' }, resolve)),
+    getReminderIntervals(),
   ]);
 
   const activeSite = SITES.find(s =>
@@ -130,7 +185,6 @@ async function init() {
     const sites = grouped[id];
     if (!sites?.length) continue;
 
-    // Tab button
     const btn = document.createElement('button');
     btn.className = `tab-btn${id === initialTab ? ' active' : ''}`;
     btn.dataset.tab = id;
@@ -138,7 +192,6 @@ async function init() {
     btn.addEventListener('click', () => switchTab(id));
     tabBar.appendChild(btn);
 
-    // Tab panel
     const panel = document.createElement('div');
     panel.className = `tab-panel${id === initialTab ? ' active' : ''}`;
     panel.dataset.tab = id;
@@ -151,6 +204,20 @@ async function init() {
 
     tabPanels.appendChild(panel);
   }
+
+  // Reminder settings tab
+  const reminderBtn = document.createElement('button');
+  reminderBtn.className = `tab-btn${initialTab === REMINDER_TAB_ID ? ' active' : ''}`;
+  reminderBtn.dataset.tab = REMINDER_TAB_ID;
+  reminderBtn.textContent = t('tabReminder');
+  reminderBtn.addEventListener('click', () => switchTab(REMINDER_TAB_ID));
+  tabBar.appendChild(reminderBtn);
+
+  const reminderPanel = document.createElement('div');
+  reminderPanel.className = `tab-panel${initialTab === REMINDER_TAB_ID ? ' active' : ''}`;
+  reminderPanel.dataset.tab = REMINDER_TAB_ID;
+  reminderPanel.appendChild(buildReminderPanel(reminderIntervals));
+  tabPanels.appendChild(reminderPanel);
 }
 
 // Apply i18n to static HTML elements

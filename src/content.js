@@ -181,9 +181,45 @@ function buildPlaceholder() {
     apply(enabled);
   });
 
+  function showReminder() {
+    if (document.getElementById('feedless-remind-overlay')) return;
+
+    const style = document.createElement('style');
+    style.id = 'feedless-remind-style';
+    style.textContent = `
+      @keyframes feedless-breathe {
+        0%   { opacity: 0; box-shadow: inset 0 0 0   0   rgba(220,38,38,0); }
+        20%  { opacity: 1; box-shadow: inset 0 0 80px 30px rgba(220,38,38,0.55); }
+        40%  { opacity: 0.4; box-shadow: inset 0 0 20px 5px  rgba(220,38,38,0.2); }
+        60%  { opacity: 1; box-shadow: inset 0 0 80px 30px rgba(220,38,38,0.55); }
+        80%  { opacity: 0.4; box-shadow: inset 0 0 20px 5px  rgba(220,38,38,0.2); }
+        100% { opacity: 0; box-shadow: inset 0 0 0   0   rgba(220,38,38,0); }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'feedless-remind-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'pointer-events:none',
+      'z-index:2147483647', 'border-radius:0',
+      'animation:feedless-breathe 5s ease-in-out forwards',
+    ].join(';');
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('animationend', () => {
+      overlay.remove();
+      style.remove();
+    }, { once: true });
+  }
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'feedless:toggle' && msg.siteId === site.id) {
       apply(msg.enabled);
+    }
+    if (msg.type === 'feedless:remind') {
+      showReminder();
     }
   });
 

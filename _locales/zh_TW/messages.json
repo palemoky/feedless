@@ -13,5 +13,12 @@
   "ariaLabel":      {
     "message": "$SITE$ 推薦封鎖",
     "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
-  }
+  },
+  "tabReminder":      { "message": "提醒" },
+  "reminderOff":      { "message": "關閉" },
+  "reminderMinutes":  {
+    "message": "$MINS$分鐘",
+    "placeholders": { "mins": { "content": "$1", "example": "10" } }
+  },
+  "reminderHint":     { "message": "在封鎖的網站上瀏覽超時後全螢幕提醒" }
 }

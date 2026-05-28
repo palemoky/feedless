@@ -13,5 +13,12 @@
   "ariaLabel":      {
     "message": "$SITE$ 推荐屏蔽",
     "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
-  }
+  },
+  "tabReminder":      { "message": "提醒" },
+  "reminderOff":      { "message": "关闭" },
+  "reminderMinutes":  {
+    "message": "$MINS$分钟",
+    "placeholders": { "mins": { "content": "$1", "example": "10" } }
+  },
+  "reminderHint":     { "message": "在屏蔽的网站上浏览超时后全屏提醒" }
 }

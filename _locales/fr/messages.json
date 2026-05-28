@@ -13,5 +13,12 @@
   "ariaLabel":      {
     "message": "Blocage des recommandations $SITE$",
     "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
-  }
+  },
+  "tabReminder":      { "message": "Rappel" },
+  "reminderOff":      { "message": "Désactivé" },
+  "reminderMinutes":  {
+    "message": "$MINS$ min",
+    "placeholders": { "mins": { "content": "$1", "example": "10" } }
+  },
+  "reminderHint":     { "message": "Alerte plein écran après trop de temps sur un site bloqué" }
 }

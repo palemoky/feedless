@@ -13,5 +13,12 @@
   "ariaLabel":      {
     "message": "$SITE$ のおすすめブロック",
     "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
-  }
+  },
+  "tabReminder":      { "message": "リマインド" },
+  "reminderOff":      { "message": "オフ" },
+  "reminderMinutes":  {
+    "message": "$MINS$分",
+    "placeholders": { "mins": { "content": "$1", "example": "10" } }
+  },
+  "reminderHint":     { "message": "ブロック済みサイトの滞在時間超過後に全画面通知" }
 }

@@ -16,18 +16,6 @@
 const SITES = [
   // ── 视频 ──────────────────────────────────────────────────────────────────
   {
-    id: 'youtube',
-    name: 'YouTube',
-    category: 'video',
-    hostnames: ['youtube.com', 'www.youtube.com'],
-    selectors: [
-      'ytd-rich-grid-renderer',                      // Home feed grid
-      'ytd-watch-next-secondary-results-renderer',   // Sidebar recommendations on video page
-      'ytd-reel-shelf-renderer',                     // Shorts shelf
-      'ytd-rich-section-renderer',                   // Featured sections (breaking news etc.)
-    ],
-  },
-  {
     id: 'bilibili',
     name: 'Bilibili',
     category: 'video',
@@ -61,6 +49,18 @@ const SITES = [
       '.main-content',
       '[class*="feedList"]',
       '[class*="videoItem"]',
+    ],
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    category: 'video',
+    hostnames: ['youtube.com', 'www.youtube.com'],
+    selectors: [
+      'ytd-rich-grid-renderer',                      // Home feed grid
+      'ytd-watch-next-secondary-results-renderer',   // Sidebar recommendations on video page
+      'ytd-reel-shelf-renderer',                     // Shorts shelf
+      'ytd-rich-section-renderer',                   // Featured sections (breaking news etc.)
     ],
   },
   {
@@ -101,20 +101,6 @@ const SITES = [
     ],
   },
   {
-    id: 'x',
-    name: 'X (Twitter)',
-    category: 'social',
-    hostnames: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
-    paths: ['/', '/home'],
-    strategy: 'spacer',
-    spacerTarget: '[data-testid="primaryColumn"] section',
-    fetchBlockPatterns: ['HomeTimeline'],
-    selectors: [
-      '[data-testid="sidebarColumn"]',
-      '[data-testid="pillLabel"]',
-    ],
-  },
-  {
     id: 'weibo',
     name: '微博',
     nameIntl: 'Weibo',
@@ -136,6 +122,20 @@ const SITES = [
       '.Topstory-container',
       '[class*="TopstoryItem"]',
       '.css-1yuhvjn',
+    ],
+  },
+  {
+    id: 'x',
+    name: 'X (Twitter)',
+    category: 'social',
+    hostnames: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
+    paths: ['/', '/home'],
+    strategy: 'spacer',
+    spacerTarget: '[data-testid="primaryColumn"] section',
+    fetchBlockPatterns: ['HomeTimeline'],
+    selectors: [
+      '[data-testid="sidebarColumn"]',
+      '[data-testid="pillLabel"]',
     ],
   },
   {
