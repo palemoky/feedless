@@ -2,6 +2,10 @@
 
 const t = key => chrome.i18n.getMessage(key);
 
+// Use native name only for Chinese locales; fall back to nameIntl otherwise.
+const isZh = chrome.i18n.getUILanguage().toLowerCase().startsWith('zh');
+const siteName = site => (!isZh && site.nameIntl) ? site.nameIntl : site.name;
+
 const CATEGORIES = [
   { id: 'video',    label: t('catVideo') },
   { id: 'social',   label: t('catSocial') },
@@ -60,7 +64,7 @@ function createSiteItem(site, enabled, isCurrent) {
 
   const nameEl = document.createElement('span');
   nameEl.className = 'site-name';
-  nameEl.textContent = site.name;
+  nameEl.textContent = siteName(site);
   info.appendChild(nameEl);
 
   const label = document.createElement('label');
@@ -70,7 +74,7 @@ function createSiteItem(site, enabled, isCurrent) {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.checked = enabled;
-  checkbox.setAttribute('aria-label', t('ariaLabel', [site.name]));
+  checkbox.setAttribute('aria-label', t('ariaLabel', [siteName(site)]));
   checkbox.addEventListener('change', async () => {
     label.title = t(checkbox.checked ? 'titleEnabled' : 'titleDisabled');
     await setDisabledSites(site.id, checkbox.checked);

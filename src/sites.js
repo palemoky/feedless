@@ -1,6 +1,7 @@
 // To add a new site: append an entry to this array.
 // id:        unique key, used in storage
-// name:      display name in popup
+// name:      native display name (shown in zh_CN / zh_TW)
+// nameIntl:  (optional) international name shown in all other locales
 // category:  'video' | 'social' | 'shopping' | 'other'
 // hostnames: list of hostnames (with or without www)
 // selectors: CSS selectors for recommendation containers to block
@@ -41,6 +42,7 @@ const SITES = [
   {
     id: 'douyin',
     name: '抖音',
+    nameIntl: 'Douyin',
     category: 'video',
     hostnames: ['douyin.com', 'www.douyin.com'],
     selectors: [
@@ -52,6 +54,7 @@ const SITES = [
   {
     id: 'kuaishou',
     name: '快手',
+    nameIntl: 'Kuaishou',
     category: 'video',
     hostnames: ['kuaishou.com', 'www.kuaishou.com'],
     selectors: [
@@ -89,6 +92,7 @@ const SITES = [
   {
     id: 'xiaohongshu',
     name: '小红书',
+    nameIntl: 'Xiaohongshu',
     category: 'social',
     hostnames: ['xiaohongshu.com', 'www.xiaohongshu.com'],
     selectors: [
@@ -113,6 +117,7 @@ const SITES = [
   {
     id: 'weibo',
     name: '微博',
+    nameIntl: 'Weibo',
     category: 'social',
     hostnames: ['weibo.com', 'www.weibo.com'],
     selectors: [
@@ -124,6 +129,7 @@ const SITES = [
   {
     id: 'zhihu',
     name: '知乎',
+    nameIntl: 'Zhihu',
     category: 'social',
     hostnames: ['zhihu.com', 'www.zhihu.com'],
     selectors: [
@@ -190,6 +196,7 @@ const SITES = [
   {
     id: 'taobao',
     name: '淘宝',
+    nameIntl: 'Taobao',
     category: 'shopping',
     hostnames: ['taobao.com', 'www.taobao.com'],
     selectors: [
@@ -202,6 +209,7 @@ const SITES = [
   {
     id: 'jd',
     name: '京东',
+    nameIntl: 'JD.com',
     category: 'shopping',
     hostnames: ['jd.com', 'www.jd.com'],
     selectors: [
@@ -216,6 +224,7 @@ const SITES = [
   {
     id: 'baidu',
     name: '百度',
+    nameIntl: 'Baidu',
     category: 'other',
     hostnames: ['baidu.com', 'www.baidu.com'],
     selectors: [
