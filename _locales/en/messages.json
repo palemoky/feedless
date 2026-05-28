@@ -1,0 +1,17 @@
+{
+  "appName":        { "message": "Feedless" },
+  "appDescription": { "message": "Block algorithmic recommendations on social media to help you stay focused." },
+  "appSubtitle":    { "message": "Block recommendations, stay focused" },
+  "catVideo":       { "message": "Video" },
+  "catSocial":      { "message": "Social" },
+  "catShopping":    { "message": "Shopping" },
+  "catOther":       { "message": "Other" },
+  "btnFeedback":    { "message": "Feedback" },
+  "btnAbout":       { "message": "About" },
+  "titleEnabled":   { "message": "Click to disable blocking" },
+  "titleDisabled":  { "message": "Click to enable blocking" },
+  "ariaLabel":      {
+    "message": "$SITE$ recommendation blocking",
+    "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
+  }
+}

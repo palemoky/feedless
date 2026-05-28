@@ -1,0 +1,17 @@
+{
+  "appName":        { "message": "Feedless" },
+  "appDescription": { "message": "Bloquez les recommandations algorithmiques sur les réseaux sociaux pour rester concentré." },
+  "appSubtitle":    { "message": "Bloquez les recommandations, restez concentré" },
+  "catVideo":       { "message": "Vidéo" },
+  "catSocial":      { "message": "Réseaux sociaux" },
+  "catShopping":    { "message": "Shopping" },
+  "catOther":       { "message": "Autre" },
+  "btnFeedback":    { "message": "Signaler un problème" },
+  "btnAbout":       { "message": "À propos" },
+  "titleEnabled":   { "message": "Cliquer pour désactiver le blocage" },
+  "titleDisabled":  { "message": "Cliquer pour activer le blocage" },
+  "ariaLabel":      {
+    "message": "Blocage des recommandations $SITE$",
+    "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
+  }
+}

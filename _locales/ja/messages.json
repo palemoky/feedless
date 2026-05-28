@@ -1,0 +1,17 @@
+{
+  "appName":        { "message": "Feedless" },
+  "appDescription": { "message": "SNSのアルゴリズムによるおすすめをブロックして、集中力を保ちましょう。" },
+  "appSubtitle":    { "message": "おすすめをブロックして集中しよう" },
+  "catVideo":       { "message": "動画" },
+  "catSocial":      { "message": "ソーシャル" },
+  "catShopping":    { "message": "ショッピング" },
+  "catOther":       { "message": "その他" },
+  "btnFeedback":    { "message": "フィードバック" },
+  "btnAbout":       { "message": "プロジェクトについて" },
+  "titleEnabled":   { "message": "クリックでブロックを無効化" },
+  "titleDisabled":  { "message": "クリックでブロックを有効化" },
+  "ariaLabel":      {
+    "message": "$SITE$ のおすすめブロック",
+    "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
+  }
+}

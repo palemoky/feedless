@@ -1,0 +1,17 @@
+{
+  "appName":        { "message": "Feedless" },
+  "appDescription": { "message": "屏蔽社交媒体上的算法推荐，帮助你保持专注。" },
+  "appSubtitle":    { "message": "屏蔽推荐，专注当下" },
+  "catVideo":       { "message": "视频" },
+  "catSocial":      { "message": "社交" },
+  "catShopping":    { "message": "购物" },
+  "catOther":       { "message": "其他" },
+  "btnFeedback":    { "message": "反馈问题" },
+  "btnAbout":       { "message": "关于项目" },
+  "titleEnabled":   { "message": "点击关闭屏蔽" },
+  "titleDisabled":  { "message": "点击开启屏蔽" },
+  "ariaLabel":      {
+    "message": "$SITE$ 推荐屏蔽",
+    "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "appName":        { "message": "Feedless" },
+  "appDescription": { "message": "封鎖社群媒體上的演算法推薦，幫助你保持專注。" },
+  "appSubtitle":    { "message": "封鎖推薦，專注當下" },
+  "catVideo":       { "message": "影片" },
+  "catSocial":      { "message": "社群" },
+  "catShopping":    { "message": "購物" },
+  "catOther":       { "message": "其他" },
+  "btnFeedback":    { "message": "回報問題" },
+  "btnAbout":       { "message": "關於專案" },
+  "titleEnabled":   { "message": "點擊關閉封鎖" },
+  "titleDisabled":  { "message": "點擊開啟封鎖" },
+  "ariaLabel":      {
+    "message": "$SITE$ 推薦封鎖",
+    "placeholders": { "site": { "content": "$1", "example": "YouTube" } }
+  }
+}

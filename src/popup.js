@@ -1,10 +1,12 @@
 'use strict';
 
+const t = key => chrome.i18n.getMessage(key);
+
 const CATEGORIES = [
-  { id: 'video',    label: '视频' },
-  { id: 'social',   label: '社交' },
-  { id: 'shopping', label: '购物' },
-  { id: 'other',    label: '其他' },
+  { id: 'video',    label: t('catVideo') },
+  { id: 'social',   label: t('catSocial') },
+  { id: 'shopping', label: t('catShopping') },
+  { id: 'other',    label: t('catOther') },
 ];
 
 async function getDisabledSites() {
@@ -63,14 +65,14 @@ function createSiteItem(site, enabled, isCurrent) {
 
   const label = document.createElement('label');
   label.className = 'toggle';
-  label.title = enabled ? '点击关闭屏蔽' : '点击开启屏蔽';
+  label.title = t(enabled ? 'titleEnabled' : 'titleDisabled');
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.checked = enabled;
-  checkbox.setAttribute('aria-label', `${site.name} 推荐屏蔽`);
+  checkbox.setAttribute('aria-label', t('ariaLabel', [site.name]));
   checkbox.addEventListener('change', async () => {
-    label.title = checkbox.checked ? '点击关闭屏蔽' : '点击开启屏蔽';
+    label.title = t(checkbox.checked ? 'titleEnabled' : 'titleDisabled');
     await setDisabledSites(site.id, checkbox.checked);
     notifyActiveTab(site.id, checkbox.checked);
   });
@@ -146,6 +148,14 @@ async function init() {
     tabPanels.appendChild(panel);
   }
 }
+
+// Apply i18n to static HTML elements
+document.querySelectorAll('[data-i18n]').forEach(el => {
+  el.textContent = t(el.dataset.i18n);
+});
+
+document.getElementById('btnFeedback').textContent = t('btnFeedback');
+document.getElementById('btnAbout').textContent = t('btnAbout');
 
 document.getElementById('btnFeedback').addEventListener('click', () => {
   chrome.tabs.create({ url: 'https://github.com/palemoky/feedless/issues' });
