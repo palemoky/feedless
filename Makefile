@@ -1,6 +1,6 @@
 VERSION := $(shell node -p "require('./manifest.json').version")
 
-.PHONY: release
+.PHONY: release build
 
 # Colors for terminal output
 BLUE := \033[0;34m
@@ -9,6 +9,9 @@ GREEN := \033[0;32m
 YELLOW := \033[0;33m
 RED := \033[0;31m
 NC := \033[0m
+
+build:  ## Create extension zip for distribution
+	zip -r feedless-v$(VERSION).zip _locales icons src manifest.json
 
 release:  ## Create and push version tag
 	@if [ -n "$$(git status --porcelain)" ]; then \
@@ -57,9 +60,7 @@ release:  ## Create and push version tag
 	CLEAN_VER=$$(echo $$VERSION | sed 's/^v//'); \
 	echo "$(BLUE)Updating manifest.json version to $$CLEAN_VER...$(NC)"; \
 	sed -i '' "s/\"version\": \".*\"/\"version\": \"$$CLEAN_VER\"/" manifest.json; \
-	echo "$(BLUE)Switching src/config.js to release mode (DEV_MODE=false)...$(NC)"; \
-	sed -i '' 's/const DEV_MODE = true/const DEV_MODE = false/' src/config.js; \
-	git add manifest.json src/config.js; \
+	git add manifest.json; \
 	git commit -m "chore: release $$VERSION"; \
 	echo ""; \
 	echo "$(YELLOW)About to create and push tag: $(GREEN)$$VERSION$(NC)"; \
@@ -84,10 +85,7 @@ release:  ## Create and push version tag
 		echo "$(GREEN)✓ Tag $$VERSION created$(NC)"; \
 		echo "$(YELLOW)💡 Tip: Configure GPG key to show Verified badge$(NC)"; \
 	fi; \
-	echo "$(BLUE)Pushing tag to remote...$(NC)"; \
-	git push origin $$VERSION; \
-	echo "$(BLUE)Restoring src/config.js to dev mode (DEV_MODE=true)...$(NC)"; \
-	sed -i '' 's/const DEV_MODE = false/const DEV_MODE = true/' src/config.js; \
-	git add src/config.js; \
-	git commit -m "chore: restore dev mode after $$VERSION"; \
-	echo "$(GREEN)✓ Release $$VERSION completed$(NC)"
+	echo "$(BLUE)Pushing commits and tag to remote...$(NC)"; \
+	git push origin HEAD $$VERSION; \
+	echo "$(GREEN)✓ Release $$VERSION completed$(NC)"; \
+	echo "$(CYAN)GitHub Actions will build the zip with DEV_MODE=false automatically.$(NC)"

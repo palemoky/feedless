@@ -18,6 +18,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Set production mode
+        run: sed -i 's/const DEV_MODE = true/const DEV_MODE = false/' src/config.js
+
       - name: Build zip
         run: make build
 
