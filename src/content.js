@@ -328,23 +328,26 @@
     }
 
     // 2. For spacer: watch for the target section to appear after X renders it
-    if (
-      strategy === "spacer" &&
-      isEnabled &&
-      shouldApply() &&
-      managedSection === null
-    ) {
-      for (const { addedNodes } of mutations) {
-        for (const node of addedNodes) {
-          if (node.nodeType !== 1) continue;
-          if (node.matches?.(site.spacerTarget)) {
-            claimSection(node);
-            return;
-          }
-          const found = node.querySelector?.(site.spacerTarget);
-          if (found) {
-            claimSection(found);
-            return;
+    if (strategy === "spacer" && isEnabled && shouldApply()) {
+      // X tab-switch destroys the section element without a path change; detect
+      // the detachment so we can claim the newly inserted section.
+      if (managedSection !== null && !document.contains(managedSection)) {
+        releaseSection();
+      }
+
+      if (managedSection === null) {
+        for (const { addedNodes } of mutations) {
+          for (const node of addedNodes) {
+            if (node.nodeType !== 1) continue;
+            if (node.matches?.(site.spacerTarget)) {
+              claimSection(node);
+              return;
+            }
+            const found = node.querySelector?.(site.spacerTarget);
+            if (found) {
+              claimSection(found);
+              return;
+            }
           }
         }
       }

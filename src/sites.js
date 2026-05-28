@@ -57,6 +57,7 @@ const SITES = [
     category: "video",
     hostnames: ["douyin.com", "www.douyin.com"],
     selectors: [
+      '.discover-tab-container', // 抖音精选首页推荐
       '[class*="recommend-container"]',
       '[class*="videoFeedV2"]',
       '[data-e2e="feed-active-video"]',
@@ -132,7 +133,11 @@ const SITES = [
     // but the containers themselves must remain in the DOM to avoid triggering
     // virtual-scroll / IntersectionObserver infinite-load loops.
     collapseChildren: true,
-    selectors: [".vue-recycle-scroller__item-wrapper", ".recommend"],
+    selectors: [
+      ".vue-recycle-scroller__item-wrapper", // 主页推荐
+      ".recommend", // 视频页推荐
+      "#__sidebar", // 个人主页右侧热榜与推荐
+    ],
   },
   {
     id: "zhihu",
@@ -173,13 +178,13 @@ const SITES = [
     name: "Facebook",
     category: "social",
     hostnames: ["facebook.com", "www.facebook.com"],
-    selectors: ['[role="feed"]', '[data-pagelet="FeedUnit"]'],
+    selectors: ['[role="feed"]'],
   },
   {
     id: "threads",
     name: "Threads",
     category: "social",
-    hostnames: ["threads.net", "www.threads.net"],
+    hostnames: ["threads.com", "www.threads.com"],
     selectors: [
       '[role="main"] [class*="x9f619"] > div > div',
       '[data-pressable-container="true"]',
