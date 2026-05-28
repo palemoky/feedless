@@ -14,7 +14,10 @@ const CATEGORIES = [
 ];
 
 const REMINDER_TAB_ID = '__reminder__';
-const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60];
+// Values stored in seconds. DEV_MODE uses short intervals for testing.
+const REMINDER_OPTIONS = DEV_MODE
+  ? [0, 3, 5, 10, 30]
+  : [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60];
 
 async function getDisabledSites() {
   return new Promise(resolve =>
@@ -81,7 +84,13 @@ function createSiteItem(site, enabled, isCurrent) {
   checkbox.addEventListener('change', async () => {
     label.title = t(checkbox.checked ? 'titleEnabled' : 'titleDisabled');
     await setDisabledSites(site.id, checkbox.checked);
-    notifyActiveTab(site.id, checkbox.checked);
+    if (isCurrent) {
+      chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+        if (tab?.id) chrome.tabs.reload(tab.id);
+      });
+    } else {
+      notifyActiveTab(site.id, checkbox.checked);
+    }
   });
 
   const slider = document.createElement('span');
@@ -125,11 +134,17 @@ function buildReminderPanel(reminderIntervals) {
     const select = document.createElement('select');
     select.className = 'reminder-select';
 
-    for (const mins of REMINDER_OPTIONS) {
+    for (const secs of REMINDER_OPTIONS) {
       const opt = document.createElement('option');
-      opt.value = mins;
-      opt.textContent = mins === 0 ? t('reminderOff') : t('reminderMinutes', [String(mins)]);
-      opt.selected = (reminderIntervals[id] || 0) === mins;
+      opt.value = secs;
+      if (secs === 0) {
+        opt.textContent = t('reminderOff');
+      } else if (DEV_MODE) {
+        opt.textContent = t('reminderSeconds', [String(secs)]);
+      } else {
+        opt.textContent = t('reminderMinutes', [String(secs / 60)]);
+      }
+      opt.selected = (reminderIntervals[id] || 0) === secs;
       select.appendChild(opt);
     }
 

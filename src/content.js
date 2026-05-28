@@ -23,6 +23,44 @@
   // Cached enabled state (set after first storage check; avoids repeated async lookups)
   let isEnabled = null;
 
+  // ─── Dev countdown ────────────────────────────────────────────────────────────
+  let countdownTickId = null;
+  let countdownEl = null;
+
+  function showCountdown(seconds) {
+    clearCountdown();
+
+    countdownEl = document.createElement('div');
+    countdownEl.id = 'feedless-countdown';
+    countdownEl.style.cssText = [
+      'position:fixed', 'top:14px', 'right:14px', 'z-index:2147483646',
+      'background:rgba(15,15,15,0.82)', 'color:#fff',
+      'padding:7px 12px 7px 10px', 'border-radius:10px',
+      'font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",monospace',
+      'border:1.5px solid rgba(220,38,38,0.65)',
+      'box-shadow:0 2px 10px rgba(0,0,0,0.4)',
+      'pointer-events:none', 'letter-spacing:0.3px',
+    ].join(';');
+    document.body.appendChild(countdownEl);
+
+    let remaining = seconds;
+    const tick = () => {
+      if (!countdownEl) return;
+      countdownEl.textContent = `⏰ ${remaining}s`;
+      if (remaining <= 0) { clearCountdown(); return; }
+      remaining--;
+      countdownTickId = setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  function clearCountdown() {
+    clearTimeout(countdownTickId);
+    countdownTickId = null;
+    countdownEl?.remove();
+    countdownEl = null;
+  }
+
   // ─── helpers ─────────────────────────────────────────────────────────────────
 
   function shouldApply() {
@@ -186,14 +224,15 @@ function buildPlaceholder() {
 
     const style = document.createElement('style');
     style.id = 'feedless-remind-style';
+    // Two slow breaths over 6 s: gentle rise → full peak → slow exhale, repeat once, fade out.
     style.textContent = `
       @keyframes feedless-breathe {
-        0%   { opacity: 0; box-shadow: inset 0 0 0   0   rgba(220,38,38,0); }
-        20%  { opacity: 1; box-shadow: inset 0 0 80px 30px rgba(220,38,38,0.55); }
-        40%  { opacity: 0.4; box-shadow: inset 0 0 20px 5px  rgba(220,38,38,0.2); }
-        60%  { opacity: 1; box-shadow: inset 0 0 80px 30px rgba(220,38,38,0.55); }
-        80%  { opacity: 0.4; box-shadow: inset 0 0 20px 5px  rgba(220,38,38,0.2); }
-        100% { opacity: 0; box-shadow: inset 0 0 0   0   rgba(220,38,38,0); }
+        0%   { box-shadow: inset 0 0  10px  2px rgba(220,38,38,0.05); }
+        20%  { box-shadow: inset 0 0 140px 55px rgba(220,38,38,0.88); }
+        40%  { box-shadow: inset 0 0  30px  8px rgba(220,38,38,0.18); }
+        60%  { box-shadow: inset 0 0 140px 55px rgba(220,38,38,0.88); }
+        85%  { box-shadow: inset 0 0  30px  8px rgba(220,38,38,0.18); }
+        100% { box-shadow: inset 0 0  10px  2px rgba(220,38,38,0);    }
       }
     `;
     document.head.appendChild(style);
@@ -202,8 +241,8 @@ function buildPlaceholder() {
     overlay.id = 'feedless-remind-overlay';
     overlay.style.cssText = [
       'position:fixed', 'inset:0', 'pointer-events:none',
-      'z-index:2147483647', 'border-radius:0',
-      'animation:feedless-breathe 5s ease-in-out forwards',
+      'z-index:2147483647',
+      'animation:feedless-breathe 6s ease-in-out forwards',
     ].join(';');
 
     document.body.appendChild(overlay);
@@ -219,7 +258,11 @@ function buildPlaceholder() {
       apply(msg.enabled);
     }
     if (msg.type === 'feedless:remind') {
+      clearCountdown();
       showReminder();
+    }
+    if (msg.type === 'feedless:countdownStart') {
+      showCountdown(msg.seconds);
     }
   });
 

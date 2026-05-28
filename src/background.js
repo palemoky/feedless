@@ -1,8 +1,13 @@
 'use strict';
 importScripts('sites.js');
+importScripts('config.js');
 
 const ALARM_PREFIX = 'feedless_reminder_';
 const SESSION_KEY_PREFIX = 'reminderTab_';
+
+// In-memory timers for DEV_MODE short intervals (seconds < 60).
+// These are lost on service worker restart, which is acceptable for dev testing.
+const devTimers = new Map(); // category -> timeoutId
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.get({ disabledSites: [], reminderIntervals: {} }, () => {});
@@ -29,15 +34,49 @@ async function getSiteForTab(tabId) {
   }
 }
 
+function scheduleReminder(category, tabId, intervalSecs) {
+  chrome.storage.session.set({ [SESSION_KEY_PREFIX + category]: tabId });
+  if (intervalSecs < 60) {
+    // Dev mode short interval: use setTimeout and show a countdown overlay
+    chrome.tabs.sendMessage(tabId, { type: 'feedless:countdownStart', seconds: intervalSecs }).catch(() => {});
+    devTimers.set(category, setTimeout(() => handleReminderFired(category), intervalSecs * 1000));
+  } else {
+    chrome.alarms.create(ALARM_PREFIX + category, { delayInMinutes: intervalSecs / 60 });
+  }
+}
+
+async function handleReminderFired(category) {
+  devTimers.delete(category);
+
+  const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
+  const tabId = data[SESSION_KEY_PREFIX + category];
+  if (!tabId) return;
+
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab?.id !== tabId) return;
+
+  const site = await getSiteForTab(tabId);
+  const { disabledSites, reminderIntervals } = await getSettings();
+  if (!site || site.category !== category || !disabledSites.includes(site.id)) {
+    chrome.storage.session.remove(SESSION_KEY_PREFIX + category);
+    return;
+  }
+
+  const interval = reminderIntervals[category] || 0;
+  if (!interval) return;
+
+  chrome.tabs.sendMessage(tabId, { type: 'feedless:remind' }).catch(() => {});
+  scheduleReminder(category, tabId, interval);
+}
+
 async function clearAllReminderAlarms() {
   const alarms = await chrome.alarms.getAll();
   for (const alarm of alarms) {
-    if (alarm.name.startsWith(ALARM_PREFIX)) {
-      chrome.alarms.clear(alarm.name);
-    }
+    if (alarm.name.startsWith(ALARM_PREFIX)) chrome.alarms.clear(alarm.name);
   }
-  const keys = SITES.map(s => s.category).filter((v, i, a) => a.indexOf(v) === i)
-    .map(cat => SESSION_KEY_PREFIX + cat);
+  for (const tid of devTimers.values()) clearTimeout(tid);
+  devTimers.clear();
+  const keys = [...new Set(SITES.map(s => s.category))].map(cat => SESSION_KEY_PREFIX + cat);
   chrome.storage.session.remove(keys);
 }
 
@@ -48,13 +87,12 @@ async function onActiveTabChange(tabId) {
   if (!site) return;
 
   const { disabledSites, reminderIntervals } = await getSettings();
-  if (disabledSites.includes(site.id)) return;
+  if (!disabledSites.includes(site.id)) return; // reminder only when blocking is off
 
   const interval = reminderIntervals[site.category] || 0;
   if (interval <= 0) return;
 
-  await chrome.storage.session.set({ [SESSION_KEY_PREFIX + site.category]: tabId });
-  chrome.alarms.create(ALARM_PREFIX + site.category, { delayInMinutes: interval });
+  scheduleReminder(site.category, tabId, interval);
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -74,40 +112,19 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
       const category = key.slice(SESSION_KEY_PREFIX.length);
       chrome.alarms.clear(ALARM_PREFIX + category);
+      const tid = devTimers.get(category);
+      if (tid !== undefined) { clearTimeout(tid); devTimers.delete(category); }
       chrome.storage.session.remove(key);
     }
   }
 });
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (!alarm.name.startsWith(ALARM_PREFIX)) return;
-  const category = alarm.name.slice(ALARM_PREFIX.length);
-
-  const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
-  const tabId = data[SESSION_KEY_PREFIX + category];
-  if (!tabId) return;
-
-  // Verify tab is still the active tab on a blocked-but-enabled site in this category
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (activeTab?.id !== tabId) return;
-
-  const site = await getSiteForTab(tabId);
-  const { disabledSites, reminderIntervals } = await getSettings();
-  if (!site || site.category !== category || disabledSites.includes(site.id)) {
-    chrome.storage.session.remove(SESSION_KEY_PREFIX + category);
-    return;
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith(ALARM_PREFIX)) {
+    handleReminderFired(alarm.name.slice(ALARM_PREFIX.length));
   }
-
-  const interval = reminderIntervals[category] || 0;
-  if (!interval) return;
-
-  chrome.tabs.sendMessage(tabId, { type: 'feedless:remind' }).catch(() => {});
-
-  // Schedule next reminder
-  chrome.alarms.create(ALARM_PREFIX + category, { delayInMinutes: interval });
 });
 
-// Re-evaluate reminder when settings change (e.g. interval updated from popup)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'feedless:reminderUpdate') {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {

@@ -16,6 +16,10 @@
   },
   "tabReminder":      { "message": "Remind" },
   "reminderOff":      { "message": "Off" },
+  "reminderSeconds":  {
+    "message": "$SECS$s",
+    "placeholders": { "secs": { "content": "$1", "example": "3" } }
+  },
   "reminderMinutes":  {
     "message": "$MINS$ min",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }

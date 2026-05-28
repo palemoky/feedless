@@ -16,6 +16,10 @@
   },
   "tabReminder":      { "message": "提醒" },
   "reminderOff":      { "message": "關閉" },
+  "reminderSeconds":  {
+    "message": "$SECS$秒",
+    "placeholders": { "secs": { "content": "$1", "example": "3" } }
+  },
   "reminderMinutes":  {
     "message": "$MINS$分鐘",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
