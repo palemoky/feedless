@@ -99,8 +99,8 @@ const SITES = [
     category: 'social',
     hostnames: ['xiaohongshu.com', 'www.xiaohongshu.com'],
     selectors: [
-      '.exploreFeeds',
-      '#homefeed',
+      '.feeds-container',
+      '#exploreFeeds',
     ],
   },
   {
