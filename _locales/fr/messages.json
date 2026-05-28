@@ -1,7 +1,7 @@
 {
   "appName":        { "message": "Feedless" },
   "appDescription": { "message": "Bloquez les recommandations algorithmiques sur les réseaux sociaux pour rester concentré." },
-  "appSubtitle":    { "message": "Bloquez les recommandations, restez concentré" },
+  "appSubtitle":    { "message": "Moins de distractions, plus de focus" },
   "catVideo":       { "message": "Vidéo" },
   "catSocial":      { "message": "Réseaux sociaux" },
   "catShopping":    { "message": "Shopping" },
