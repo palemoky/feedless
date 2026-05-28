@@ -4,7 +4,7 @@
   <img src="icons/logo.png" width="96" alt="Feedless logo">
 </p>
 
-Feedless is a browser extension that removes homepage feeds, recommendation sections, and other distracting content — so you can visit a site with purpose and leave on your own terms.
+Do you keep getting pulled away by recommended content every time you open a website? Feedless is a browser extension that hides homepage feeds, recommendation sections, and other distracting elements — giving you back control of your attention.
 
 ## Supported Sites
 
