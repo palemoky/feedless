@@ -1,16 +1,14 @@
 (function () {
-  'use strict';
+  "use strict";
 
-  const hostname = location.hostname.replace(/^www\./, '');
-  const site = SITES.find(s =>
-    s.hostnames.some(h => h.replace(/^www\./, '') === hostname)
-  );
+  const hostname = location.hostname.replace(/^www\./, "");
+  const site = findSiteByHostname(hostname);
   if (!site) return;
 
-  const STYLE_ID = 'feedless-styles';
-  const FETCH_ATTR = 'data-feedless-active';
-  const PLACEHOLDER_ID = 'feedless-placeholder';
-  const strategy = site.strategy || 'css';
+  const STYLE_ID = "feedless-styles";
+  const FETCH_ATTR = "data-feedless-active";
+  const PLACEHOLDER_ID = "feedless-placeholder";
+  const strategy = site.strategy || "css";
 
   // State for 'remove' strategy
   let removalObserver = null;
@@ -18,7 +16,7 @@
 
   // State for 'spacer' strategy
   let managedSection = null;
-  let sectionGuard = null;  // observer that keeps the section clean
+  let sectionGuard = null; // observer that keeps the section clean
 
   // Cached enabled state (set after first storage check; avoids repeated async lookups)
   let isEnabled = null;
@@ -30,24 +28,33 @@
   function showCountdown(seconds) {
     clearCountdown();
 
-    countdownEl = document.createElement('div');
-    countdownEl.id = 'feedless-countdown';
+    countdownEl = document.createElement("div");
+    countdownEl.id = "feedless-countdown";
     countdownEl.style.cssText = [
-      'position:fixed', 'top:14px', 'right:14px', 'z-index:2147483646',
-      'background:rgba(15,15,15,0.82)', 'color:#fff',
-      'padding:7px 12px 7px 10px', 'border-radius:10px',
+      "position:fixed",
+      "top:14px",
+      "right:14px",
+      "z-index:2147483646",
+      "background:rgba(15,15,15,0.82)",
+      "color:#fff",
+      "padding:7px 12px 7px 10px",
+      "border-radius:10px",
       'font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",monospace',
-      'border:1.5px solid rgba(220,38,38,0.65)',
-      'box-shadow:0 2px 10px rgba(0,0,0,0.4)',
-      'pointer-events:none', 'letter-spacing:0.3px',
-    ].join(';');
+      "border:1.5px solid rgba(220,38,38,0.65)",
+      "box-shadow:0 2px 10px rgba(0,0,0,0.4)",
+      "pointer-events:none",
+      "letter-spacing:0.3px",
+    ].join(";");
     document.body.appendChild(countdownEl);
 
     let remaining = seconds;
     const tick = () => {
       if (!countdownEl) return;
       countdownEl.textContent = `⏰ ${remaining}s`;
-      if (remaining <= 0) { clearCountdown(); return; }
+      if (remaining <= 0) {
+        clearCountdown();
+        return;
+      }
       remaining--;
       countdownTickId = setTimeout(tick, 1000);
     };
@@ -71,13 +78,21 @@
   // ─── CSS strategy ────────────────────────────────────────────────────────────
 
   function injectCSS() {
-    if ((!site.selectors?.length && !site.extraCSS) || document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
+    if (
+      (!site.selectors?.length && !site.extraCSS) ||
+      document.getElementById(STYLE_ID)
+    )
+      return;
+    const style = document.createElement("style");
     style.id = STYLE_ID;
-    const selectorCSS = (site.selectors ?? []).map(s =>
-      site.collapseChildren ? `${s}>*{display:none!important}` : `${s}{display:none!important}`
-    ).join('');
-    style.textContent = selectorCSS + (site.extraCSS ?? '');
+    const selectorCSS = (site.selectors ?? [])
+      .map((s) =>
+        site.collapseChildren
+          ? `${s}>*{display:none!important}`
+          : `${s}{display:none!important}`,
+      )
+      .join("");
+    style.textContent = selectorCSS + (site.extraCSS ?? "");
     document.documentElement.appendChild(style);
   }
 
@@ -89,7 +104,9 @@
 
   function removeMatchingIn(root) {
     for (const sel of site.selectors) {
-      try { root.querySelectorAll(sel).forEach(el => el.remove()); } catch {}
+      try {
+        root.querySelectorAll(sel).forEach((el) => el.remove());
+      } catch {}
     }
   }
 
@@ -103,14 +120,20 @@
           if (node.nodeType !== 1) continue;
           for (const sel of site.selectors) {
             try {
-              if (node.matches(sel)) { node.remove(); break; }
-              node.querySelectorAll(sel).forEach(el => el.remove());
+              if (node.matches(sel)) {
+                node.remove();
+                break;
+              }
+              node.querySelectorAll(sel).forEach((el) => el.remove());
             } catch {}
           }
         }
       }
     });
-    removalObserver.observe(document.documentElement, { subtree: true, childList: true });
+    removalObserver.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+    });
   }
 
   function stopRemoval() {
@@ -127,15 +150,17 @@
   // so the sentinel is always pushed below the fold. We also block the
   // HomeTimeline fetch as a secondary defense.
 
-function buildPlaceholder() {
-    const ph = document.createElement('div');
+  function buildPlaceholder() {
+    const ph = document.createElement("div");
     ph.id = PLACEHOLDER_ID;
     // min-height:100vh ensures the sentinel (placed after our placeholder by X)
     // is always below the viewport, so IntersectionObserver never fires.
-    ph.style.cssText = 'min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding-top:80px;box-sizing:border-box';
-    const msg = document.createElement('div');
-    msg.style.cssText = 'color:#536471;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
-    msg.textContent = '推荐已屏蔽';
+    ph.style.cssText =
+      "min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding-top:80px;box-sizing:border-box";
+    const msg = document.createElement("div");
+    msg.style.cssText =
+      'color:#536471;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+    msg.textContent = "推荐已屏蔽";
     ph.appendChild(msg);
     return ph;
   }
@@ -153,8 +178,11 @@ function buildPlaceholder() {
     sectionGuard = new MutationObserver(() => {
       let hasPlaceholder = false;
       for (const child of [...section.children]) {
-        if (child.id === PLACEHOLDER_ID) { hasPlaceholder = true; }
-        else { child.remove(); }
+        if (child.id === PLACEHOLDER_ID) {
+          hasPlaceholder = true;
+        } else {
+          child.remove();
+        }
       }
       if (!hasPlaceholder) section.appendChild(buildPlaceholder());
     });
@@ -179,23 +207,23 @@ function buildPlaceholder() {
     isEnabled = enabled;
 
     if (enabled && shouldApply()) {
-      if (strategy === 'spacer') {
-        document.documentElement.setAttribute(FETCH_ATTR, '');
-        injectCSS();            // hide sidebar
-        findAndClaimSection();  // replace feed with placeholder
-      } else if (strategy === 'remove') {
+      if (strategy === "spacer") {
+        document.documentElement.setAttribute(FETCH_ATTR, "");
+        injectCSS(); // hide sidebar
+        findAndClaimSection(); // replace feed with placeholder
+      } else if (strategy === "remove") {
         startRemoval();
       } else {
         injectCSS();
       }
     } else {
-      if (strategy === 'spacer') {
+      if (strategy === "spacer") {
         document.documentElement.removeAttribute(FETCH_ATTR);
         removeCSS();
         const wasManaging = managedSection !== null;
         releaseSection();
         if (wasManaging) location.reload();
-      } else if (strategy === 'remove') {
+      } else if (strategy === "remove") {
         const needsReload = activelyRemoving;
         stopRemoval();
         if (needsReload) location.reload();
@@ -210,23 +238,23 @@ function buildPlaceholder() {
   // For spacer strategy: set the attribute optimistically so that x-fetch-blocker.js
   // (which runs in the MAIN world via manifest.json) starts blocking immediately.
   // The storage check below will quickly remove the attribute if the site is disabled.
-  if (strategy === 'spacer') {
-    document.documentElement.setAttribute(FETCH_ATTR, '');
+  if (strategy === "spacer") {
+    document.documentElement.setAttribute(FETCH_ATTR, "");
   }
 
   chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) => {
     const enabled = !disabledSites.includes(site.id);
-    if (!enabled && strategy === 'spacer') {
+    if (!enabled && strategy === "spacer") {
       document.documentElement.removeAttribute(FETCH_ATTR);
     }
     apply(enabled);
   });
 
   function showReminder() {
-    if (document.getElementById('feedless-remind-overlay')) return;
+    if (document.getElementById("feedless-remind-overlay")) return;
 
-    const style = document.createElement('style');
-    style.id = 'feedless-remind-style';
+    const style = document.createElement("style");
+    style.id = "feedless-remind-style";
     // Two slow breaths over 6 s: gentle rise → full peak → slow exhale, repeat once, fade out.
     style.textContent = `
       @keyframes feedless-breathe {
@@ -240,31 +268,37 @@ function buildPlaceholder() {
     `;
     document.head.appendChild(style);
 
-    const overlay = document.createElement('div');
-    overlay.id = 'feedless-remind-overlay';
+    const overlay = document.createElement("div");
+    overlay.id = "feedless-remind-overlay";
     overlay.style.cssText = [
-      'position:fixed', 'inset:0', 'pointer-events:none',
-      'z-index:2147483647',
-      'animation:feedless-breathe 6s ease-in-out forwards',
-    ].join(';');
+      "position:fixed",
+      "inset:0",
+      "pointer-events:none",
+      "z-index:2147483647",
+      "animation:feedless-breathe 6s ease-in-out forwards",
+    ].join(";");
 
     document.body.appendChild(overlay);
 
-    overlay.addEventListener('animationend', () => {
-      overlay.remove();
-      style.remove();
-    }, { once: true });
+    overlay.addEventListener(
+      "animationend",
+      () => {
+        overlay.remove();
+        style.remove();
+      },
+      { once: true },
+    );
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'feedless:toggle' && msg.siteId === site.id) {
+    if (msg.type === "feedless:toggle" && msg.siteId === site.id) {
       apply(msg.enabled);
     }
-    if (msg.type === 'feedless:remind') {
+    if (msg.type === "feedless:remind") {
       clearCountdown();
       showReminder();
     }
-    if (msg.type === 'feedless:countdownStart') {
+    if (msg.type === "feedless:countdownStart") {
       showCountdown(msg.seconds);
     }
   });
@@ -278,8 +312,8 @@ function buildPlaceholder() {
     if (location.pathname !== lastPath) {
       lastPath = location.pathname;
 
-      if (strategy === 'remove') stopRemoval();
-      if (strategy === 'spacer') {
+      if (strategy === "remove") stopRemoval();
+      if (strategy === "spacer") {
         releaseSection();
         if (!shouldApply()) {
           document.documentElement.removeAttribute(FETCH_ATTR);
@@ -294,17 +328,31 @@ function buildPlaceholder() {
     }
 
     // 2. For spacer: watch for the target section to appear after X renders it
-    if (strategy === 'spacer' && isEnabled && shouldApply() && managedSection === null) {
+    if (
+      strategy === "spacer" &&
+      isEnabled &&
+      shouldApply() &&
+      managedSection === null
+    ) {
       for (const { addedNodes } of mutations) {
         for (const node of addedNodes) {
           if (node.nodeType !== 1) continue;
-          if (node.matches?.(site.spacerTarget)) { claimSection(node); return; }
+          if (node.matches?.(site.spacerTarget)) {
+            claimSection(node);
+            return;
+          }
           const found = node.querySelector?.(site.spacerTarget);
-          if (found) { claimSection(found); return; }
+          if (found) {
+            claimSection(found);
+            return;
+          }
         }
       }
     }
   });
 
-  navObserver.observe(document.documentElement, { subtree: true, childList: true });
+  navObserver.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+  });
 })();

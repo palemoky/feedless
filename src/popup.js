@@ -1,35 +1,37 @@
-'use strict';
+"use strict";
 
 const t = (key, subs) => chrome.i18n.getMessage(key, subs);
 
 // Use native name only for Chinese locales; fall back to nameIntl otherwise.
-const isZh = chrome.i18n.getUILanguage().toLowerCase().startsWith('zh');
-const siteName = site => (!isZh && site.nameIntl) ? site.nameIntl : site.name;
+const isZh = chrome.i18n.getUILanguage().toLowerCase().startsWith("zh");
+const siteName = (site) => (!isZh && site.nameIntl ? site.nameIntl : site.name);
 
 const CATEGORIES = [
-  { id: 'video',    label: t('catVideo') },
-  { id: 'social',   label: t('catSocial') },
-  { id: 'shopping', label: t('catShopping') },
-  { id: 'other',    label: t('catOther') },
+  { id: "video", label: t("catVideo") },
+  { id: "social", label: t("catSocial") },
+  { id: "shopping", label: t("catShopping") },
+  { id: "other", label: t("catOther") },
 ];
 
-const REMINDER_TAB_ID = '__reminder__';
+const REMINDER_TAB_ID = "__reminder__";
 // Values stored in seconds. DEV_MODE uses short intervals for testing.
 const REMINDER_OPTIONS = DEV_MODE
   ? [0, 3, 5, 10, 30]
   : [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60];
 
 async function getDisabledSites() {
-  return new Promise(resolve =>
-    chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) => resolve(disabledSites))
+  return new Promise((resolve) =>
+    chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) =>
+      resolve(disabledSites),
+    ),
   );
 }
 
 async function getActiveTabHostname() {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       try {
-        resolve(new URL(tab?.url ?? '').hostname.replace(/^www\./, ''));
+        resolve(new URL(tab?.url ?? "").hostname.replace(/^www\./, ""));
       } catch {
         resolve(null);
       }
@@ -40,49 +42,53 @@ async function getActiveTabHostname() {
 async function setDisabledSites(siteId, enabled) {
   const disabledSites = await getDisabledSites();
   const updated = enabled
-    ? disabledSites.filter(id => id !== siteId)
+    ? disabledSites.filter((id) => id !== siteId)
     : [...new Set([...disabledSites, siteId])];
-  return new Promise(resolve => chrome.storage.sync.set({ disabledSites: updated }, resolve));
+  return new Promise((resolve) =>
+    chrome.storage.sync.set({ disabledSites: updated }, resolve),
+  );
 }
 
 function notifyActiveTab(siteId, enabled) {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'feedless:toggle', siteId, enabled }).catch(() => {});
+      chrome.tabs
+        .sendMessage(tab.id, { type: "feedless:toggle", siteId, enabled })
+        .catch(() => {});
     }
   });
 }
 
 function createSiteItem(site, enabled, isCurrent) {
-  const item = document.createElement('div');
-  item.className = `site-item${isCurrent ? ' is-current' : ''}`;
+  const item = document.createElement("div");
+  item.className = `site-item${isCurrent ? " is-current" : ""}`;
 
-  const info = document.createElement('div');
-  info.className = 'site-info';
+  const info = document.createElement("div");
+  info.className = "site-info";
 
-  const favicon = document.createElement('img');
-  favicon.className = 'site-favicon';
+  const favicon = document.createElement("img");
+  favicon.className = "site-favicon";
   favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
-  favicon.alt = '';
+  favicon.alt = "";
   favicon.width = 14;
   favicon.height = 14;
   info.appendChild(favicon);
 
-  const nameEl = document.createElement('span');
-  nameEl.className = 'site-name';
+  const nameEl = document.createElement("span");
+  nameEl.className = "site-name";
   nameEl.textContent = siteName(site);
   info.appendChild(nameEl);
 
-  const label = document.createElement('label');
-  label.className = 'toggle';
-  label.title = t(enabled ? 'titleEnabled' : 'titleDisabled');
+  const label = document.createElement("label");
+  label.className = "toggle";
+  label.title = t(enabled ? "titleEnabled" : "titleDisabled");
 
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
   checkbox.checked = enabled;
-  checkbox.setAttribute('aria-label', t('ariaLabel', [siteName(site)]));
-  checkbox.addEventListener('change', async () => {
-    label.title = t(checkbox.checked ? 'titleEnabled' : 'titleDisabled');
+  checkbox.setAttribute("aria-label", t("ariaLabel", [siteName(site)]));
+  checkbox.addEventListener("change", async () => {
+    label.title = t(checkbox.checked ? "titleEnabled" : "titleDisabled");
     await setDisabledSites(site.id, checkbox.checked);
     if (isCurrent) {
       chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
@@ -93,8 +99,8 @@ function createSiteItem(site, enabled, isCurrent) {
     }
   });
 
-  const slider = document.createElement('span');
-  slider.className = 'slider';
+  const slider = document.createElement("span");
+  slider.className = "slider";
 
   label.appendChild(checkbox);
   label.appendChild(slider);
@@ -104,57 +110,65 @@ function createSiteItem(site, enabled, isCurrent) {
 }
 
 function switchTab(tabId) {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabId);
   });
-  document.querySelectorAll('.tab-panel').forEach(panel => {
-    panel.classList.toggle('active', panel.dataset.tab === tabId);
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.tab === tabId);
   });
   chrome.storage.local.set({ activeTab: tabId });
 }
 
 async function getReminderIntervals() {
-  return new Promise(resolve =>
-    chrome.storage.sync.get({ reminderIntervals: {} }, ({ reminderIntervals }) => resolve(reminderIntervals))
+  return new Promise((resolve) =>
+    chrome.storage.sync.get(
+      { reminderIntervals: {} },
+      ({ reminderIntervals }) => resolve(reminderIntervals),
+    ),
   );
 }
 
 function buildReminderPanel(reminderIntervals) {
-  const container = document.createElement('div');
-  container.className = 'reminder-panel';
+  const container = document.createElement("div");
+  container.className = "reminder-panel";
 
   for (const { id, label } of CATEGORIES) {
-    const row = document.createElement('div');
-    row.className = 'reminder-row';
+    const row = document.createElement("div");
+    row.className = "reminder-row";
 
-    const catLabel = document.createElement('span');
-    catLabel.className = 'reminder-cat';
+    const catLabel = document.createElement("span");
+    catLabel.className = "reminder-cat";
     catLabel.textContent = label;
 
-    const select = document.createElement('select');
-    select.className = 'reminder-select';
+    const select = document.createElement("select");
+    select.className = "reminder-select";
 
     for (const secs of REMINDER_OPTIONS) {
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = secs;
       if (secs === 0) {
-        opt.textContent = t('reminderOff');
+        opt.textContent = t("reminderOff");
       } else if (DEV_MODE) {
-        opt.textContent = t('reminderSeconds', [String(secs)]);
+        opt.textContent = t("reminderSeconds", [String(secs)]);
       } else {
-        opt.textContent = t('reminderMinutes', [String(secs / 60)]);
+        opt.textContent = t("reminderMinutes", [String(secs / 60)]);
       }
       opt.selected = (reminderIntervals[id] || 0) === secs;
       select.appendChild(opt);
     }
 
-    select.addEventListener('change', async () => {
-      const updated = await new Promise(resolve =>
-        chrome.storage.sync.get({ reminderIntervals: {} }, ({ reminderIntervals: ri }) => resolve(ri))
+    select.addEventListener("change", async () => {
+      const updated = await new Promise((resolve) =>
+        chrome.storage.sync.get(
+          { reminderIntervals: {} },
+          ({ reminderIntervals: ri }) => resolve(ri),
+        ),
       );
       updated[id] = Number(select.value);
       chrome.storage.sync.set({ reminderIntervals: updated });
-      chrome.runtime.sendMessage({ type: 'feedless:reminderUpdate' }).catch(() => {});
+      chrome.runtime
+        .sendMessage({ type: "feedless:reminderUpdate" })
+        .catch(() => {});
     });
 
     row.appendChild(catLabel);
@@ -162,53 +176,58 @@ function buildReminderPanel(reminderIntervals) {
     container.appendChild(row);
   }
 
-  const hint = document.createElement('p');
-  hint.className = 'reminder-hint';
-  hint.textContent = t('reminderHint');
+  const hint = document.createElement("p");
+  hint.className = "reminder-hint";
+  hint.textContent = t("reminderHint");
   container.appendChild(hint);
 
   return container;
 }
 
 async function init() {
-  const [disabledSites, activeHostname, { activeTab: savedTab }, reminderIntervals] = await Promise.all([
+  const [
+    disabledSites,
+    activeHostname,
+    { activeTab: savedTab },
+    reminderIntervals,
+  ] = await Promise.all([
     getDisabledSites(),
     getActiveTabHostname(),
-    new Promise(resolve => chrome.storage.local.get({ activeTab: 'video' }, resolve)),
+    new Promise((resolve) =>
+      chrome.storage.local.get({ activeTab: "video" }, resolve),
+    ),
     getReminderIntervals(),
   ]);
 
-  const activeSite = SITES.find(s =>
-    s.hostnames.some(h => h.replace(/^www\./, '') === activeHostname)
-  );
+  const activeSite = findSiteByHostname(activeHostname);
   const activeSiteId = activeSite?.id ?? null;
 
   // Group sites by category
   const grouped = {};
   for (const site of SITES) {
-    const cat = site.category ?? 'other';
+    const cat = site.category ?? "other";
     (grouped[cat] = grouped[cat] ?? []).push(site);
   }
 
-  const tabBar = document.getElementById('tabBar');
-  const tabPanels = document.getElementById('tabPanels');
+  const tabBar = document.getElementById("tabBar");
+  const tabPanels = document.getElementById("tabPanels");
 
   // Determine which tab to open: prefer the tab containing the active site
-  const initialTab = activeSite?.category ?? savedTab ?? 'video';
+  const initialTab = activeSite?.category ?? savedTab ?? "video";
 
   for (const { id, label } of CATEGORIES) {
     const sites = grouped[id];
     if (!sites?.length) continue;
 
-    const btn = document.createElement('button');
-    btn.className = `tab-btn${id === initialTab ? ' active' : ''}`;
+    const btn = document.createElement("button");
+    btn.className = `tab-btn${id === initialTab ? " active" : ""}`;
     btn.dataset.tab = id;
     btn.textContent = label;
-    btn.addEventListener('click', () => switchTab(id));
+    btn.addEventListener("click", () => switchTab(id));
     tabBar.appendChild(btn);
 
-    const panel = document.createElement('div');
-    panel.className = `tab-panel${id === initialTab ? ' active' : ''}`;
+    const panel = document.createElement("div");
+    panel.className = `tab-panel${id === initialTab ? " active" : ""}`;
     panel.dataset.tab = id;
 
     for (const site of sites) {
@@ -221,33 +240,33 @@ async function init() {
   }
 
   // Reminder settings tab
-  const reminderBtn = document.createElement('button');
-  reminderBtn.className = `tab-btn${initialTab === REMINDER_TAB_ID ? ' active' : ''}`;
+  const reminderBtn = document.createElement("button");
+  reminderBtn.className = `tab-btn${initialTab === REMINDER_TAB_ID ? " active" : ""}`;
   reminderBtn.dataset.tab = REMINDER_TAB_ID;
-  reminderBtn.textContent = t('tabReminder');
-  reminderBtn.addEventListener('click', () => switchTab(REMINDER_TAB_ID));
+  reminderBtn.textContent = t("tabReminder");
+  reminderBtn.addEventListener("click", () => switchTab(REMINDER_TAB_ID));
   tabBar.appendChild(reminderBtn);
 
-  const reminderPanel = document.createElement('div');
-  reminderPanel.className = `tab-panel${initialTab === REMINDER_TAB_ID ? ' active' : ''}`;
+  const reminderPanel = document.createElement("div");
+  reminderPanel.className = `tab-panel${initialTab === REMINDER_TAB_ID ? " active" : ""}`;
   reminderPanel.dataset.tab = REMINDER_TAB_ID;
   reminderPanel.appendChild(buildReminderPanel(reminderIntervals));
   tabPanels.appendChild(reminderPanel);
 }
 
 // Apply i18n to static HTML elements
-document.querySelectorAll('[data-i18n]').forEach(el => {
+document.querySelectorAll("[data-i18n]").forEach((el) => {
   el.textContent = t(el.dataset.i18n);
 });
 
-document.getElementById('btnFeedback').textContent = t('btnFeedback');
-document.getElementById('btnAbout').textContent = t('btnAbout');
+document.getElementById("btnFeedback").textContent = t("btnFeedback");
+document.getElementById("btnAbout").textContent = t("btnAbout");
 
-document.getElementById('btnFeedback').addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://github.com/palemoky/feedless/issues' });
+document.getElementById("btnFeedback").addEventListener("click", () => {
+  chrome.tabs.create({ url: "https://github.com/palemoky/feedless/issues" });
 });
-document.getElementById('btnAbout').addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://github.com/palemoky/feedless' });
+document.getElementById("btnAbout").addEventListener("click", () => {
+  chrome.tabs.create({ url: "https://github.com/palemoky/feedless" });
 });
 
 init();

@@ -1,26 +1,31 @@
-'use strict';
-importScripts('sites.js');
-importScripts('config.js');
+"use strict";
+importScripts("sites.js");
+importScripts("config.js");
 
-const ALARM_PREFIX = 'feedless_reminder_';
-const SESSION_KEY_PREFIX = 'reminderTab_';
+const ALARM_PREFIX = "feedless_reminder_";
+const SESSION_KEY_PREFIX = "reminderTab_";
 
 // In-memory timers for DEV_MODE short intervals (seconds < 60).
 // These are lost on service worker restart, which is acceptable for dev testing.
 const devTimers = new Map(); // category -> timeoutId
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.sync.get({ disabledSites: [], reminderIntervals: {} }, () => {});
+  chrome.storage.sync.get(
+    { disabledSites: [], reminderIntervals: {} },
+    () => {},
+  );
 });
 
 function getSiteByHostname(hostname) {
-  const clean = hostname.replace(/^www\./, '');
-  return SITES.find(s => s.hostnames.some(h => h.replace(/^www\./, '') === clean));
+  return findSiteByHostname(hostname);
 }
 
 async function getSettings() {
-  return new Promise(resolve =>
-    chrome.storage.sync.get({ disabledSites: [], reminderIntervals: {} }, resolve)
+  return new Promise((resolve) =>
+    chrome.storage.sync.get(
+      { disabledSites: [], reminderIntervals: {} },
+      resolve,
+    ),
   );
 }
 
@@ -38,10 +43,20 @@ function scheduleReminder(category, tabId, intervalSecs) {
   chrome.storage.session.set({ [SESSION_KEY_PREFIX + category]: tabId });
   if (intervalSecs < 60) {
     // Dev mode short interval: use setTimeout and show a countdown overlay
-    chrome.tabs.sendMessage(tabId, { type: 'feedless:countdownStart', seconds: intervalSecs }).catch(() => {});
-    devTimers.set(category, setTimeout(() => handleReminderFired(category), intervalSecs * 1000));
+    chrome.tabs
+      .sendMessage(tabId, {
+        type: "feedless:countdownStart",
+        seconds: intervalSecs,
+      })
+      .catch(() => {});
+    devTimers.set(
+      category,
+      setTimeout(() => handleReminderFired(category), intervalSecs * 1000),
+    );
   } else {
-    chrome.alarms.create(ALARM_PREFIX + category, { delayInMinutes: intervalSecs / 60 });
+    chrome.alarms.create(ALARM_PREFIX + category, {
+      delayInMinutes: intervalSecs / 60,
+    });
   }
 }
 
@@ -52,7 +67,10 @@ async function handleReminderFired(category) {
   const tabId = data[SESSION_KEY_PREFIX + category];
   if (!tabId) return;
 
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
   if (activeTab?.id !== tabId) return;
 
   const site = await getSiteForTab(tabId);
@@ -65,7 +83,7 @@ async function handleReminderFired(category) {
   const interval = reminderIntervals[category] || 0;
   if (!interval) return;
 
-  chrome.tabs.sendMessage(tabId, { type: 'feedless:remind' }).catch(() => {});
+  chrome.tabs.sendMessage(tabId, { type: "feedless:remind" }).catch(() => {});
   scheduleReminder(category, tabId, interval);
 }
 
@@ -76,7 +94,9 @@ async function clearAllReminderAlarms() {
   }
   for (const tid of devTimers.values()) clearTimeout(tid);
   devTimers.clear();
-  const keys = [...new Set(SITES.map(s => s.category))].map(cat => SESSION_KEY_PREFIX + cat);
+  const keys = [...new Set(SITES.map((s) => s.category))].map(
+    (cat) => SESSION_KEY_PREFIX + cat,
+  );
   chrome.storage.session.remove(keys);
 }
 
@@ -100,7 +120,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== 'complete') return;
+  if (changeInfo.status !== "complete") return;
   chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
     if (activeTab?.id === tabId) onActiveTabChange(tabId);
   });
@@ -113,7 +133,10 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       const category = key.slice(SESSION_KEY_PREFIX.length);
       chrome.alarms.clear(ALARM_PREFIX + category);
       const tid = devTimers.get(category);
-      if (tid !== undefined) { clearTimeout(tid); devTimers.delete(category); }
+      if (tid !== undefined) {
+        clearTimeout(tid);
+        devTimers.delete(category);
+      }
       chrome.storage.session.remove(key);
     }
   }
@@ -126,7 +149,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'feedless:reminderUpdate') {
+  if (msg.type === "feedless:reminderUpdate") {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (tab?.id) onActiveTabChange(tab.id);
     });
