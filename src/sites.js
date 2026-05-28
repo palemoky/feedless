@@ -77,7 +77,7 @@ const SITES = [
     hostnames: ["youtube.com", "www.youtube.com"],
     selectors: [
       "#secondary", // Sidebar recommendations on video page
-      "ytd-rich-grid-renderer", // Home feed grid
+      'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer', // Home feed grid
       "ytd-watch-next-secondary-results-renderer", // Sidebar recommendations on video page
       "ytd-reel-shelf-renderer", // Shorts shelf
       "ytd-rich-section-renderer", // Featured sections (breaking news etc.)
