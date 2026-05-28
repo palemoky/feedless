@@ -57,11 +57,16 @@ const SITES = [
     category: 'video',
     hostnames: ['youtube.com', 'www.youtube.com'],
     selectors: [
+      '#secondary',                                  // Sidebar recommendations on video page
       'ytd-rich-grid-renderer',                      // Home feed grid
       'ytd-watch-next-secondary-results-renderer',   // Sidebar recommendations on video page
       'ytd-reel-shelf-renderer',                     // Shorts shelf
       'ytd-rich-section-renderer',                   // Featured sections (breaking news etc.)
     ],
+    // Expand the video column to fill the space left by the hidden sidebar.
+    // Constrain #primary to the 16:9 player's natural width given viewport height,
+    // then remove the player's max-height cap so it fills that width exactly.
+    extraCSS: '#columns{max-width:100%!important}ytd-watch-flexy #primary{max-width:min(100%,calc((100vh - 56px)*16/9))!important}ytd-player,#player-container{max-height:none!important}',
   },
   {
     id: 'tiktok',
