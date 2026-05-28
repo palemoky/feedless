@@ -54,9 +54,12 @@ release:  ## Create and push version tag
 		exit 1; \
 	fi; \
 	echo ""; \
+	CLEAN_VER=$$(echo $$VERSION | sed 's/^v//'); \
+	echo "$(BLUE)Updating manifest.json version to $$CLEAN_VER...$(NC)"; \
+	sed -i '' "s/\"version\": \".*\"/\"version\": \"$$CLEAN_VER\"/" manifest.json; \
 	echo "$(BLUE)Switching src/config.js to release mode (DEV_MODE=false)...$(NC)"; \
 	sed -i '' 's/const DEV_MODE = true/const DEV_MODE = false/' src/config.js; \
-	git add src/config.js; \
+	git add manifest.json src/config.js; \
 	git commit -m "chore: release $$VERSION"; \
 	echo ""; \
 	echo "$(YELLOW)About to create and push tag: $(GREEN)$$VERSION$(NC)"; \
