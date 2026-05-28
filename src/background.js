@@ -107,8 +107,6 @@ async function onActiveTabChange(tabId) {
   if (!site) return;
 
   const { disabledSites, reminderIntervals } = await getSettings();
-  if (!disabledSites.includes(site.id)) return; // reminder only when blocking is off
-
   const interval = reminderIntervals[site.category] || 0;
   if (interval <= 0) return;
 
