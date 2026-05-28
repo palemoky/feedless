@@ -219,10 +219,8 @@ const SITES = [
     category: 'other',
     hostnames: ['baidu.com', 'www.baidu.com'],
     selectors: [
-      '#feed_center',
-      '.feed-content',
-      '[class*="feed-item"]',
-      '.com-feed-list',
+      '#s-hotsearch-wrapper',
+      '#content_right',
     ],
   },
 ];
