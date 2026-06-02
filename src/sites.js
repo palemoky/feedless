@@ -95,14 +95,6 @@ const SITES = [
       '[class*="recommend-feed"]',
     ],
   },
-  {
-    id: "kuaishou",
-    name: "快手",
-    nameIntl: "Kuaishou",
-    category: "video",
-    hostnames: ["kuaishou.com", "www.kuaishou.com"],
-    selectors: [".main-content", '[class*="feedList"]', '[class*="videoItem"]'],
-  },
   // ── 社交 ──────────────────────────────────────────────────────────────────
   {
     id: "x",

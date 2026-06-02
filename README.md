@@ -11,10 +11,9 @@ Do you keep getting pulled away by recommended content every time you open a web
 | Video    | Social      | Shopping | Other |
 | -------- | ----------- | -------- | ----- |
 | YouTube  | X (Twitter) | Taobao   | Baidu |
-| TikTok   | Instagram   | JD.com   |       |
-| Bilibili | Xiaohongshu |          |       |
-| Douyin   | Weibo       |          |       |
-| Kuaishou | Zhihu       |          |       |
+| TikTok   | Xiaohongshu   | JD.com   |       |
+| Bilibili | Weibo |          |       |
+| Douyin   | Zhihu       |          |       |
 
 ## Reminders
 
