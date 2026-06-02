@@ -4,7 +4,38 @@
   "version": "0.2.0",
   "description": "__MSG_appDescription__",
   "default_locale": "en",
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://youtube.com/*",
+    "*://*.youtube.com/*",
+    "*://bilibili.com/*",
+    "*://*.bilibili.com/*",
+    "*://douyin.com/*",
+    "*://*.douyin.com/*",
+    "*://tiktok.com/*",
+    "*://*.tiktok.com/*",
+    "*://kuaishou.com/*",
+    "*://*.kuaishou.com/*",
+    "*://x.com/*",
+    "*://*.x.com/*",
+    "*://twitter.com/*",
+    "*://*.twitter.com/*",
+    "*://xiaohongshu.com/*",
+    "*://*.xiaohongshu.com/*",
+    "*://weibo.com/*",
+    "*://*.weibo.com/*",
+    "*://zhihu.com/*",
+    "*://*.zhihu.com/*",
+    "*://taobao.com/*",
+    "*://*.taobao.com/*",
+    "*://jd.com/*",
+    "*://*.jd.com/*",
+    "*://baidu.com/*",
+    "*://*.baidu.com/*"
+  ],
   "action": {
     "default_popup": "src/popup.html",
     "default_title": "Feedless"
@@ -18,16 +49,16 @@
         "*://*.bilibili.com/*",
         "*://douyin.com/*",
         "*://*.douyin.com/*",
-        "*://kuaishou.com/*",
-        "*://*.kuaishou.com/*",
         "*://tiktok.com/*",
         "*://*.tiktok.com/*",
-        "*://xiaohongshu.com/*",
-        "*://*.xiaohongshu.com/*",
+        "*://kuaishou.com/*",
+        "*://*.kuaishou.com/*",
         "*://x.com/*",
         "*://*.x.com/*",
         "*://twitter.com/*",
         "*://*.twitter.com/*",
+        "*://xiaohongshu.com/*",
+        "*://*.xiaohongshu.com/*",
         "*://weibo.com/*",
         "*://*.weibo.com/*",
         "*://zhihu.com/*",
@@ -39,7 +70,10 @@
         "*://baidu.com/*",
         "*://*.baidu.com/*"
       ],
-      "js": ["src/sites.js", "src/content.js"],
+      "js": [
+        "src/sites.js",
+        "src/content.js"
+      ],
       "run_at": "document_start"
     },
     {
@@ -49,7 +83,9 @@
         "*://twitter.com/*",
         "*://*.twitter.com/*"
       ],
-      "js": ["src/x-fetch-blocker.js"],
+      "js": [
+        "src/x-fetch-blocker.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     }

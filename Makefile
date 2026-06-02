@@ -1,6 +1,6 @@
 VERSION := $(shell node -p "require('./manifest.json').version")
 
-.PHONY: release build
+.PHONY: release build manifest
 
 # Colors for terminal output
 BLUE := \033[0;34m
@@ -10,7 +10,11 @@ YELLOW := \033[0;33m
 RED := \033[0;31m
 NC := \033[0m
 
-build:  ## Create extension zip for distribution
+manifest:  ## Regenerate manifest host lists from src/sites.js (single source of truth)
+	@node scripts/gen-manifest.cjs
+	@echo "$(GREEN)✓ manifest.json hosts regenerated from src/sites.js$(NC)"
+
+build: manifest  ## Create extension zip for distribution
 	zip -r feedless-v$(VERSION).zip _locales icons src manifest.json
 
 release:  ## Create and push version tag
@@ -58,6 +62,8 @@ release:  ## Create and push version tag
 	fi; \
 	echo ""; \
 	CLEAN_VER=$$(echo $$VERSION | sed 's/^v//'); \
+	echo "$(BLUE)Regenerating manifest host lists from src/sites.js...$(NC)"; \
+	node scripts/gen-manifest.cjs; \
 	echo "$(BLUE)Updating manifest.json version to $$CLEAN_VER...$(NC)"; \
 	sed -i '' "s/\"version\": \".*\"/\"version\": \"$$CLEAN_VER\"/" manifest.json; \
 	git add manifest.json; \

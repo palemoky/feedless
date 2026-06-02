@@ -186,3 +186,10 @@ const SITES = [
     selectors: ["#s-hotsearch-wrapper", "#content_right"],
   },
 ];
+
+// Node-only export so build tooling (scripts/gen-manifest.cjs) can read the
+// site list. In the browser (content script / service worker) `module` is
+// undefined, so this block is skipped and has no runtime effect.
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { SITES, findSiteByHostname, normalizeHostname, hostnameMatches };
+}
