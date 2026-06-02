@@ -68,10 +68,14 @@ function createSiteItem(site, enabled, isCurrent) {
 
   const favicon = document.createElement("img");
   favicon.className = "site-favicon";
-  favicon.src = `https://www.google.com/s2/favicons?domain=${site.hostnames[0]}&sz=32`;
+  // Bundled locally (icons/sites/<id>.png) so the popup makes no third-party
+  // request — avoids leaking the user's site list and works without Google.
+  favicon.src = chrome.runtime.getURL(`icons/sites/${site.id}.png`);
   favicon.alt = "";
   favicon.width = 14;
   favicon.height = 14;
+  // Hide gracefully if an icon is ever missing rather than showing a broken image.
+  favicon.addEventListener("error", () => favicon.remove());
   info.appendChild(favicon);
 
   const nameEl = document.createElement("span");

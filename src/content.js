@@ -7,8 +7,17 @@
 
   const STYLE_ID = "feedless-styles";
   const FETCH_ATTR = "data-feedless-active";
+  // Patterns the MAIN-world fetch blocker (x-fetch-blocker.js) should match
+  // against outgoing request URLs. Published here so the per-site config in
+  // sites.js is the single source of truth instead of being hardcoded twice.
+  const FETCH_BLOCK_ATTR = "data-feedless-block";
   const PLACEHOLDER_ID = "feedless-placeholder";
   const strategy = site.strategy || "css";
+
+  // When the extension is reloaded/updated/disabled, this content script keeps
+  // running in already-open tabs but its link to the extension is severed, so
+  // any chrome.* call throws "Extension context invalidated." Guard with this.
+  const isContextValid = () => Boolean(chrome.runtime?.id);
 
   // State for 'remove' strategy
   let removalObserver = null;
@@ -239,6 +248,12 @@
   // (which runs in the MAIN world via manifest.json) starts blocking immediately.
   // The storage check below will quickly remove the attribute if the site is disabled.
   if (strategy === "spacer") {
+    // Patterns are fixed per page, so publish them once; only the active flag
+    // toggles. The blocker no-ops when no patterns are present.
+    document.documentElement.setAttribute(
+      FETCH_BLOCK_ATTR,
+      (site.fetchBlockPatterns ?? []).join(","),
+    );
     document.documentElement.setAttribute(FETCH_ATTR, "");
   }
 
@@ -308,6 +323,12 @@
   let lastPath = location.pathname;
 
   const navObserver = new MutationObserver((mutations) => {
+    // Extension was reloaded; stop observing so we don't touch dead chrome.* APIs.
+    if (!isContextValid()) {
+      navObserver.disconnect();
+      return;
+    }
+
     // 1. Path change
     if (location.pathname !== lastPath) {
       lastPath = location.pathname;

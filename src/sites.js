@@ -13,6 +13,9 @@
 //                      fires. Also blocks feed API calls via window.fetch override.
 //                      Use when both hiding and removing collapse the container and
 //                      trigger more loads (e.g. X/Twitter).
+// spacerTarget:        (spacer only) selector for the feed container to replace.
+// fetchBlockPatterns:  (spacer only) URL substrings the MAIN-world fetch blocker
+//                      drops while the strategy is active (e.g. ["HomeTimeline"]).
 function normalizeHostname(hostname) {
   return String(hostname || "")
     .toLowerCase()
@@ -40,6 +43,24 @@ function findSiteByHostname(hostname) {
 
 const SITES = [
   // ── 视频 ──────────────────────────────────────────────────────────────────
+ {
+    id: "youtube",
+    name: "YouTube",
+    category: "video",
+    hostnames: ["youtube.com", "www.youtube.com"],
+    selectors: [
+      "#secondary", // Sidebar recommendations on video page
+      'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer', // Home feed grid
+      "ytd-watch-next-secondary-results-renderer", // Sidebar recommendations on video page
+      "ytd-reel-shelf-renderer", // Shorts shelf
+      "ytd-rich-section-renderer", // Featured sections (breaking news etc.)
+    ],
+    // Expand the video column to fill the space left by the hidden sidebar.
+    // Constrain #primary to the 16:9 player's natural width given viewport height,
+    // then remove the player's max-height cap so it fills that width exactly.
+    extraCSS:
+      "#columns{max-width:100%!important}ytd-watch-flexy #primary{max-width:min(100%,calc((100vh - 56px)*16/9))!important}ytd-player,#player-container{max-height:none!important}",
+  },
   {
     id: "bilibili",
     name: "Bilibili",
@@ -64,32 +85,6 @@ const SITES = [
     ],
   },
   {
-    id: "kuaishou",
-    name: "快手",
-    nameIntl: "Kuaishou",
-    category: "video",
-    hostnames: ["kuaishou.com", "www.kuaishou.com"],
-    selectors: [".main-content", '[class*="feedList"]', '[class*="videoItem"]'],
-  },
-  {
-    id: "youtube",
-    name: "YouTube",
-    category: "video",
-    hostnames: ["youtube.com", "www.youtube.com"],
-    selectors: [
-      "#secondary", // Sidebar recommendations on video page
-      'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer', // Home feed grid
-      "ytd-watch-next-secondary-results-renderer", // Sidebar recommendations on video page
-      "ytd-reel-shelf-renderer", // Shorts shelf
-      "ytd-rich-section-renderer", // Featured sections (breaking news etc.)
-    ],
-    // Expand the video column to fill the space left by the hidden sidebar.
-    // Constrain #primary to the 16:9 player's natural width given viewport height,
-    // then remove the player's max-height cap so it fills that width exactly.
-    extraCSS:
-      "#columns{max-width:100%!important}ytd-watch-flexy #primary{max-width:min(100%,calc((100vh - 56px)*16/9))!important}ytd-player,#player-container{max-height:none!important}",
-  },
-  {
     id: "tiktok",
     name: "TikTok",
     category: "video",
@@ -100,7 +95,26 @@ const SITES = [
       '[class*="recommend-feed"]',
     ],
   },
+  {
+    id: "kuaishou",
+    name: "快手",
+    nameIntl: "Kuaishou",
+    category: "video",
+    hostnames: ["kuaishou.com", "www.kuaishou.com"],
+    selectors: [".main-content", '[class*="feedList"]', '[class*="videoItem"]'],
+  },
   // ── 社交 ──────────────────────────────────────────────────────────────────
+  {
+    id: "x",
+    name: "X (Twitter)",
+    category: "social",
+    hostnames: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
+    paths: ["/", "/home"],
+    strategy: "spacer",
+    spacerTarget: '[data-testid="primaryColumn"] section',
+    fetchBlockPatterns: ["HomeTimeline"],
+    selectors: ['[data-testid="sidebarColumn"]', '[data-testid="pillLabel"]'],
+  },
   {
     id: "xiaohongshu",
     name: "小红书",
@@ -135,28 +149,6 @@ const SITES = [
       '[class~="woo-box-flex"][class*="_content_"][class*="_noside1_"]', // Home feed
       ".Topstory-container", // Home feed
       ".HotSearchCard", // Hot search card
-    ],
-  },
-  {
-    id: "x",
-    name: "X (Twitter)",
-    category: "social",
-    hostnames: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
-    paths: ["/", "/home"],
-    strategy: "spacer",
-    spacerTarget: '[data-testid="primaryColumn"] section',
-    fetchBlockPatterns: ["HomeTimeline"],
-    selectors: ['[data-testid="sidebarColumn"]', '[data-testid="pillLabel"]'],
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    category: "social",
-    hostnames: ["instagram.com", "www.instagram.com"],
-    selectors: [
-      'main[role="main"] article',
-      '[role="main"] ._aano',
-      'section main div[class*="x9f619"]',
     ],
   },
 
