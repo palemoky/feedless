@@ -265,24 +265,35 @@
     apply(enabled);
   });
 
+  // Reminder visual styles. The chosen one is read from sync storage at trigger
+  // time so changing it in the popup takes effect on the next reminder.
+  const REMINDER_DEFAULT = "glitch";
+  const RED = "220,38,38";
+
   function showReminder() {
+    if (!isContextValid()) {
+      renderReminder(REMINDER_DEFAULT);
+      return;
+    }
+    chrome.storage.sync.get(
+      { reminderStyle: REMINDER_DEFAULT },
+      ({ reminderStyle }) => renderReminder(reminderStyle),
+    );
+  }
+
+  function renderReminder(styleId) {
     if (document.getElementById("feedless-remind-overlay")) return;
+    const render =
+      { breathe: renderBreathe, hud: renderHud, glitch: renderGlitch }[
+        styleId
+      ] || renderGlitch;
+    render();
+  }
 
-    const style = document.createElement("style");
-    style.id = "feedless-remind-style";
-    // Two slow breaths over 6 s: gentle rise → full peak → slow exhale, repeat once, fade out.
-    style.textContent = `
-      @keyframes feedless-breathe {
-        0%   { box-shadow: inset 0 0  10px  2px rgba(220,38,38,0.05); }
-        20%  { box-shadow: inset 0 0 140px 55px rgba(220,38,38,0.88); }
-        40%  { box-shadow: inset 0 0  30px  8px rgba(220,38,38,0.18); }
-        60%  { box-shadow: inset 0 0 140px 55px rgba(220,38,38,0.88); }
-        85%  { box-shadow: inset 0 0  30px  8px rgba(220,38,38,0.18); }
-        100% { box-shadow: inset 0 0  10px  2px rgba(220,38,38,0);    }
-      }
-    `;
-    document.head.appendChild(style);
-
+  // Mounts a full-screen, click-through overlay carrying its own scoped <style>,
+  // then self-removes after `durationMs`. Returning the overlay lets callers wire
+  // up early dismissal if needed.
+  function mountReminderOverlay(durationMs, innerHTML, extraCss = "") {
     const overlay = document.createElement("div");
     overlay.id = "feedless-remind-overlay";
     overlay.style.cssText = [
@@ -290,18 +301,172 @@
       "inset:0",
       "pointer-events:none",
       "z-index:2147483647",
-      "animation:feedless-breathe 6s ease-in-out forwards",
-    ].join(";");
-
+      "overflow:hidden",
+      extraCss,
+    ]
+      .filter(Boolean)
+      .join(";");
+    overlay.innerHTML = innerHTML;
     document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), durationMs);
+    return overlay;
+  }
 
-    overlay.addEventListener(
-      "animationend",
-      () => {
-        overlay.remove();
-        style.remove();
-      },
-      { once: true },
+  // ── breathe: the original two-breath red vignette ──────────────────────────
+  function renderBreathe() {
+    mountReminderOverlay(
+      6000,
+      `<style>
+        @keyframes feedless-breathe {
+          0%   { box-shadow: inset 0 0  10px  2px rgba(${RED},0.05); }
+          20%  { box-shadow: inset 0 0 140px 55px rgba(${RED},0.88); }
+          40%  { box-shadow: inset 0 0  30px  8px rgba(${RED},0.18); }
+          60%  { box-shadow: inset 0 0 140px 55px rgba(${RED},0.88); }
+          85%  { box-shadow: inset 0 0  30px  8px rgba(${RED},0.18); }
+          100% { box-shadow: inset 0 0  10px  2px rgba(${RED},0);    }
+        }
+      </style>`,
+      "animation:feedless-breathe 6s ease-in-out forwards",
+    );
+  }
+
+  // ── hud: cinematic targeting frame with converging corner brackets ─────────
+  function renderHud() {
+    mountReminderOverlay(
+      2600,
+      `<style>
+        @keyframes fl-hud-frame {
+          0%   { opacity:0; transform:scale(1.04); }
+          12%  { opacity:1; transform:scale(1); }
+          14%  { box-shadow: inset 0 0 0 2px rgba(${RED},1), inset 0 0 120px 10px rgba(${RED},0.35); }
+          20%  { box-shadow: inset 0 0 0 2px rgba(${RED},0.4), inset 0 0 30px 4px rgba(${RED},0.08); }
+          85%  { opacity:1; }
+          100% { opacity:0; }
+        }
+        @keyframes fl-hud-corner {
+          0%  { opacity:0; }
+          8%  { opacity:0; transform: translate(var(--tx), var(--ty)); }
+          20% { opacity:1; transform: translate(0,0); }
+          85% { opacity:1; }
+          100%{ opacity:0; }
+        }
+        @keyframes fl-hud-scan {
+          0%  { top:-2%; opacity:0; }
+          15% { opacity:0.9; }
+          85% { opacity:0.9; }
+          100%{ top:102%; opacity:0; }
+        }
+        @keyframes fl-hud-text {
+          0%,10% { opacity:0; }
+          18% { opacity:1; }
+          50% { opacity:0.4; }
+          65% { opacity:1; }
+          85% { opacity:1; }
+          100%{ opacity:0; }
+        }
+        #feedless-remind-overlay .fl-frame {
+          position:absolute; inset:0; border:2px solid rgba(${RED},0.85);
+          box-shadow: inset 0 0 120px 10px rgba(${RED},0.30);
+          animation: fl-hud-frame 2.6s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-c {
+          position:absolute; width:46px; height:46px; border:3px solid rgba(${RED},1);
+          animation: fl-hud-corner 2.6s cubic-bezier(.2,.9,.2,1) forwards;
+        }
+        #feedless-remind-overlay .fl-tl { top:18px; left:18px;  border-right:0; border-bottom:0; --tx:-30px; --ty:-30px; }
+        #feedless-remind-overlay .fl-tr { top:18px; right:18px; border-left:0;  border-bottom:0; --tx:30px;  --ty:-30px; }
+        #feedless-remind-overlay .fl-bl { bottom:18px; left:18px;  border-right:0; border-top:0; --tx:-30px; --ty:30px; }
+        #feedless-remind-overlay .fl-br { bottom:18px; right:18px; border-left:0;  border-top:0; --tx:30px;  --ty:30px; }
+        #feedless-remind-overlay .fl-scan {
+          position:absolute; left:0; right:0; height:2px;
+          background: linear-gradient(90deg, transparent, rgba(${RED},0.9) 50%, transparent);
+          box-shadow: 0 0 14px 3px rgba(${RED},0.6);
+          animation: fl-hud-scan 2.6s ease-in-out forwards;
+        }
+        #feedless-remind-overlay .fl-label {
+          position:absolute; top:30px; left:50%; transform:translateX(-50%);
+          font:600 12px/1 monospace; letter-spacing:2px;
+          color:rgba(${RED},1); text-shadow:0 0 8px rgba(${RED},0.8);
+          animation: fl-hud-text 2.6s steps(1) forwards;
+        }
+        #feedless-remind-overlay .fl-tag {
+          position:absolute; bottom:30px; right:34px;
+          font:600 11px/1 monospace; letter-spacing:3px;
+          color:rgba(${RED},0.9); animation: fl-hud-text 2.6s steps(1) forwards;
+        }
+      </style>
+      <div class="fl-frame"></div>
+      <div class="fl-c fl-tl"></div><div class="fl-c fl-tr"></div>
+      <div class="fl-c fl-bl"></div><div class="fl-c fl-br"></div>
+      <div class="fl-scan"></div>
+      <div class="fl-label">◢ FOCUS LOCK ◣</div>
+      <div class="fl-tag">FEEDLESS // ALERT</div>`,
+    );
+  }
+
+  // ── glitch: cyberpunk signal-interference burst ────────────────────────────
+  function renderGlitch() {
+    mountReminderOverlay(
+      2400,
+      `<style>
+        @keyframes fl-gl-flash {
+          0%  { opacity:0; }
+          6%  { opacity:1; box-shadow: inset 0 0 200px 40px rgba(${RED},0.9); }
+          14% { opacity:0.3; }
+          22% { opacity:1; box-shadow: inset 0 0 120px 20px rgba(${RED},0.6); }
+          40% { opacity:0.5; }
+          100%{ opacity:0; }
+        }
+        @keyframes fl-gl-scan { 0% { background-position:0 0; } 100% { background-position:0 100%; } }
+        @keyframes fl-gl-shift-r {
+          0%,100%{ transform:translate(0,0); } 10%{ transform:translate(-6px,3px); }
+          30%{ transform:translate(4px,-2px); } 50%{ transform:translate(-8px,0); } 70%{ transform:translate(3px,2px); }
+        }
+        @keyframes fl-gl-shift-b {
+          0%,100%{ transform:translate(0,0); } 10%{ transform:translate(6px,-3px); }
+          30%{ transform:translate(-4px,2px); } 50%{ transform:translate(8px,0); } 70%{ transform:translate(-3px,-2px); }
+        }
+        @keyframes fl-gl-tear {
+          0%,100%{ clip-path: inset(0 0 100% 0); opacity:0; }
+          12%{ clip-path: inset(20% 0 42% 0); opacity:1; transform:translateX(-18px); }
+          24%{ clip-path: inset(0 0 100% 0); opacity:0; }
+          38%{ clip-path: inset(58% 0 12% 0); opacity:1; transform:translateX(22px); }
+          46%{ clip-path: inset(0 0 100% 0); opacity:0; }
+          60%{ clip-path: inset(35% 0 55% 0); opacity:1; transform:translateX(-12px); }
+          66%{ clip-path: inset(0 0 100% 0); opacity:0; }
+        }
+        #feedless-remind-overlay .fl-flash {
+          position:absolute; inset:0; background: rgba(${RED},0.12);
+          animation: fl-gl-flash 2.4s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-scanlines {
+          position:absolute; inset:0; mix-blend-mode:multiply;
+          background: repeating-linear-gradient(0deg, rgba(0,0,0,0.28) 0 1px, transparent 1px 3px);
+          animation: fl-gl-scan .4s linear infinite, fl-gl-flash 2.4s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-stage {
+          position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        }
+        #feedless-remind-overlay .fl-txt {
+          position:absolute; color:#fff; font:800 clamp(28px,6vw,72px)/1 monospace; letter-spacing:4px;
+          text-shadow:0 0 12px rgba(${RED},0.9); animation: fl-gl-flash 2.4s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-txt.fl-r { color:rgba(255,0,60,0.9); mix-blend-mode:screen; animation: fl-gl-shift-r 2.4s steps(2) infinite, fl-gl-flash 2.4s ease-out forwards; }
+        #feedless-remind-overlay .fl-txt.fl-b { color:rgba(0,200,255,0.8); mix-blend-mode:screen; animation: fl-gl-shift-b 2.4s steps(2) infinite, fl-gl-flash 2.4s ease-out forwards; }
+        #feedless-remind-overlay .fl-tear {
+          position:absolute; left:0; right:0; height:34%; top:33%; mix-blend-mode:screen;
+          background: linear-gradient(90deg, transparent, rgba(${RED},0.85), transparent);
+          animation: fl-gl-tear 2.4s steps(1) forwards;
+        }
+      </style>
+      <div class="fl-flash"></div>
+      <div class="fl-tear"></div>
+      <div class="fl-stage">
+        <div class="fl-txt fl-b">STOP · GET BACK</div>
+        <div class="fl-txt fl-r">STOP · GET BACK</div>
+        <div class="fl-txt">STOP · GET BACK</div>
+      </div>
+      <div class="fl-scanlines"></div>`,
     );
   }
 

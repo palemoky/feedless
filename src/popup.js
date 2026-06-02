@@ -19,6 +19,14 @@ const REMINDER_OPTIONS = DEV_MODE
   ? [0, 3, 5, 10, 30]
   : [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60];
 
+// Visual style of the full-screen reminder. Must match the renderers in content.js.
+const REMINDER_STYLE_DEFAULT = "glitch";
+const REMINDER_STYLES = [
+  { id: "glitch", label: () => t("reminderStyleGlitch") },
+  { id: "hud", label: () => t("reminderStyleHud") },
+  { id: "breathe", label: () => t("reminderStyleBreathe") },
+];
+
 async function getDisabledSites() {
   return new Promise((resolve) =>
     chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) =>
@@ -132,9 +140,59 @@ async function getReminderIntervals() {
   );
 }
 
-function buildReminderPanel(reminderIntervals) {
+function previewReminder() {
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (tab?.id) {
+      chrome.tabs
+        .sendMessage(tab.id, { type: "feedless:remind" })
+        .catch(() => {});
+    }
+  });
+}
+
+function buildReminderPanel(reminderIntervals, reminderStyle) {
   const container = document.createElement("div");
   container.className = "reminder-panel";
+
+  // Reminder style picker + a button to preview it on the current tab.
+  const styleRow = document.createElement("div");
+  styleRow.className = "reminder-row";
+
+  const styleLabel = document.createElement("span");
+  styleLabel.className = "reminder-cat";
+  styleLabel.textContent = t("reminderStyleLabel");
+
+  const styleControls = document.createElement("div");
+  styleControls.className = "reminder-style-controls";
+
+  const styleSelect = document.createElement("select");
+  styleSelect.className = "reminder-select";
+  for (const { id, label } of REMINDER_STYLES) {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = label();
+    opt.selected = (reminderStyle || REMINDER_STYLE_DEFAULT) === id;
+    styleSelect.appendChild(opt);
+  }
+  styleSelect.addEventListener("change", () => {
+    chrome.storage.sync.set({ reminderStyle: styleSelect.value });
+  });
+
+  const previewBtn = document.createElement("button");
+  previewBtn.className = "reminder-preview-btn";
+  previewBtn.textContent = t("reminderPreview");
+  previewBtn.title = t("reminderPreviewHint");
+  previewBtn.addEventListener("click", () => {
+    chrome.storage.sync.set({ reminderStyle: styleSelect.value }, () =>
+      previewReminder(),
+    );
+  });
+
+  styleControls.appendChild(styleSelect);
+  styleControls.appendChild(previewBtn);
+  styleRow.appendChild(styleLabel);
+  styleRow.appendChild(styleControls);
+  container.appendChild(styleRow);
 
   for (const { id, label } of CATEGORIES) {
     const row = document.createElement("div");
@@ -194,6 +252,7 @@ async function init() {
     activeHostname,
     { activeTab: savedTab },
     reminderIntervals,
+    { reminderStyle },
   ] = await Promise.all([
     getDisabledSites(),
     getActiveTabHostname(),
@@ -201,6 +260,12 @@ async function init() {
       chrome.storage.local.get({ activeTab: "video" }, resolve),
     ),
     getReminderIntervals(),
+    new Promise((resolve) =>
+      chrome.storage.sync.get(
+        { reminderStyle: REMINDER_STYLE_DEFAULT },
+        resolve,
+      ),
+    ),
   ]);
 
   const activeSite = findSiteByHostname(activeHostname);
@@ -254,7 +319,7 @@ async function init() {
   const reminderPanel = document.createElement("div");
   reminderPanel.className = `tab-panel${initialTab === REMINDER_TAB_ID ? " active" : ""}`;
   reminderPanel.dataset.tab = REMINDER_TAB_ID;
-  reminderPanel.appendChild(buildReminderPanel(reminderIntervals));
+  reminderPanel.appendChild(buildReminderPanel(reminderIntervals, reminderStyle));
   tabPanels.appendChild(reminderPanel);
 }
 

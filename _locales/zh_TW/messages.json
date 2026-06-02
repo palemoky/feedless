@@ -24,5 +24,11 @@
     "message": "$MINS$分鐘",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
   },
-  "reminderHint":     { "message": "在封鎖的網站上瀏覽超時後全螢幕提醒" }
+  "reminderHint":     { "message": "在封鎖的網站上瀏覽超時後全螢幕提醒" },
+  "reminderStyleLabel":   { "message": "提醒樣式" },
+  "reminderStyleHud":     { "message": "HUD 鎖定" },
+  "reminderStyleGlitch":  { "message": "數位故障" },
+  "reminderStyleBreathe": { "message": "呼吸光暈" },
+  "reminderPreview":      { "message": "試看" },
+  "reminderPreviewHint":  { "message": "在目前分頁預覽提醒效果" }
 }

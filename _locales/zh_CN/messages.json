@@ -24,5 +24,11 @@
     "message": "$MINS$分钟",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
   },
-  "reminderHint":     { "message": "在屏蔽的网站上浏览超时后全屏提醒" }
+  "reminderHint":     { "message": "在屏蔽的网站上浏览超时后全屏提醒" },
+  "reminderStyleLabel":   { "message": "提醒样式" },
+  "reminderStyleHud":     { "message": "HUD 锁定" },
+  "reminderStyleGlitch":  { "message": "数字故障" },
+  "reminderStyleBreathe": { "message": "呼吸光晕" },
+  "reminderPreview":      { "message": "试看" },
+  "reminderPreviewHint":  { "message": "在当前标签页预览提醒效果" }
 }

@@ -24,5 +24,11 @@
     "message": "$MINS$ min",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
   },
-  "reminderHint":     { "message": "Full-screen alert after spending time on a blocked site" }
+  "reminderHint":     { "message": "Full-screen alert after spending time on a blocked site" },
+  "reminderStyleLabel":   { "message": "Alert style" },
+  "reminderStyleHud":     { "message": "HUD lock-on" },
+  "reminderStyleGlitch":  { "message": "Glitch" },
+  "reminderStyleBreathe": { "message": "Breathing glow" },
+  "reminderPreview":      { "message": "Preview" },
+  "reminderPreviewHint":  { "message": "Preview the alert on the current tab" }
 }

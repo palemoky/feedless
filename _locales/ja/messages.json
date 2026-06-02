@@ -24,5 +24,11 @@
     "message": "$MINS$分",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
   },
-  "reminderHint":     { "message": "ブロック済みサイトの滞在時間超過後に全画面通知" }
+  "reminderHint":     { "message": "ブロック済みサイトの滞在時間超過後に全画面通知" },
+  "reminderStyleLabel":   { "message": "通知スタイル" },
+  "reminderStyleHud":     { "message": "HUD ロックオン" },
+  "reminderStyleGlitch":  { "message": "グリッチ" },
+  "reminderStyleBreathe": { "message": "呼吸する光" },
+  "reminderPreview":      { "message": "プレビュー" },
+  "reminderPreviewHint":  { "message": "現在のタブで通知をプレビュー" }
 }

@@ -24,5 +24,11 @@
     "message": "$MINS$ min",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
   },
-  "reminderHint":     { "message": "Alerte plein écran après trop de temps sur un site bloqué" }
+  "reminderHint":     { "message": "Alerte plein écran après trop de temps sur un site bloqué" },
+  "reminderStyleLabel":   { "message": "Style d'alerte" },
+  "reminderStyleHud":     { "message": "Verrouillage HUD" },
+  "reminderStyleGlitch":  { "message": "Glitch" },
+  "reminderStyleBreathe": { "message": "Lueur respirante" },
+  "reminderPreview":      { "message": "Aperçu" },
+  "reminderPreviewHint":  { "message": "Aperçu de l'alerte sur l'onglet actuel" }
 }
