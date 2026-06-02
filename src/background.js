@@ -215,11 +215,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
       const category = key.slice(SESSION_KEY_PREFIX.length);
 
-      // If this was the actively-timed tab, save its elapsed time.
+      // If this was the actively-timed tab, reset the category's accumulated
+      // time so reopening the site starts a fresh full interval instead of
+      // resuming the near-expired countdown (which would warn immediately).
       const active = await getActive();
       if (active?.category === category) {
-        await saveCurrentCategoryElapsed();
+        await clearActive();
       }
+      await resetAccumulated(category);
 
       chrome.alarms.clear(ALARM_PREFIX + category);
       chrome.storage.session.remove(key);
