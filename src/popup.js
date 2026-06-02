@@ -14,10 +14,8 @@ const CATEGORIES = [
 ];
 
 const REMINDER_TAB_ID = "__reminder__";
-// Values stored in seconds. DEV_MODE uses short intervals for testing.
-const REMINDER_OPTIONS = DEV_MODE
-  ? [0, 3, 5, 10, 30]
-  : [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60];
+// Values stored in seconds.
+const REMINDER_OPTIONS = [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60];
 
 // Visual style of the full-screen reminder. Must match the renderers in content.js.
 const REMINDER_STYLE_DEFAULT = "glitch";
@@ -208,13 +206,10 @@ function buildReminderPanel(reminderIntervals, reminderStyle) {
     for (const secs of REMINDER_OPTIONS) {
       const opt = document.createElement("option");
       opt.value = secs;
-      if (secs === 0) {
-        opt.textContent = t("reminderOff");
-      } else if (DEV_MODE) {
-        opt.textContent = t("reminderSeconds", [String(secs)]);
-      } else {
-        opt.textContent = t("reminderMinutes", [String(secs / 60)]);
-      }
+      opt.textContent =
+        secs === 0
+          ? t("reminderOff")
+          : t("reminderMinutes", [String(secs / 60)]);
       opt.selected = (reminderIntervals[id] || 0) === secs;
       select.appendChild(opt);
     }

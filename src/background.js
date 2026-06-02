@@ -13,10 +13,6 @@ const ACCUMULATED_KEY_PREFIX = "accumulated_";
 // on Chrome's hidden clamp.
 const MIN_ALARM_SECS = 30;
 
-// In-memory timers for DEV_MODE short intervals (seconds < 60).
-// These are lost on service worker restart, which is acceptable for dev testing.
-const devTimers = new Map(); // category -> timeoutId
-
 // Which category is currently active and when it started, persisted to session
 // storage so an idle service-worker restart does not lose the elapsed time.
 // Shape: { category, start } where start is Date.now() when it became active.
@@ -117,31 +113,23 @@ async function saveCurrentCategoryElapsed() {
 
 function scheduleReminder(category, tabId, remainingSecs) {
   chrome.storage.session.set({ [SESSION_KEY_PREFIX + category]: tabId });
-  if (DEV_MODE && remainingSecs < 60) {
-    // Dev mode short interval: use setTimeout and show a countdown overlay.
-    // setTimeout does not survive service-worker suspension, which is
-    // acceptable for dev testing only. Production always uses chrome.alarms,
-    // which persists across worker restarts.
+  // In DEV_MODE, show a live countdown overlay on the tab. Purely visual: the
+  // reminder always fires from chrome.alarms, which persists across worker
+  // restarts (setTimeout would not).
+  if (DEV_MODE) {
     chrome.tabs
       .sendMessage(tabId, {
         type: "feedless:countdownStart",
         seconds: Math.round(remainingSecs),
       })
       .catch(() => {});
-    devTimers.set(
-      category,
-      setTimeout(() => handleReminderFired(category), remainingSecs * 1000),
-    );
-  } else {
-    chrome.alarms.create(ALARM_PREFIX + category, {
-      delayInMinutes: Math.max(remainingSecs, MIN_ALARM_SECS) / 60,
-    });
   }
+  chrome.alarms.create(ALARM_PREFIX + category, {
+    delayInMinutes: Math.max(remainingSecs, MIN_ALARM_SECS) / 60,
+  });
 }
 
 async function handleReminderFired(category) {
-  devTimers.delete(category);
-
   const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
   const tabId = data[SESSION_KEY_PREFIX + category];
   if (!tabId) return;
@@ -182,8 +170,6 @@ async function clearAllReminderAlarms() {
   for (const alarm of alarms) {
     if (alarm.name.startsWith(ALARM_PREFIX)) chrome.alarms.clear(alarm.name);
   }
-  for (const tid of devTimers.values()) clearTimeout(tid);
-  devTimers.clear();
   const keys = [...new Set(SITES.map((s) => s.category))].map(
     (cat) => SESSION_KEY_PREFIX + cat,
   );
@@ -236,11 +222,6 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       }
 
       chrome.alarms.clear(ALARM_PREFIX + category);
-      const tid = devTimers.get(category);
-      if (tid !== undefined) {
-        clearTimeout(tid);
-        devTimers.delete(category);
-      }
       chrome.storage.session.remove(key);
     }
   }

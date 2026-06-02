@@ -30,7 +30,10 @@
   // Cached enabled state (set after first storage check; avoids repeated async lookups)
   let isEnabled = null;
 
-  // ─── Dev countdown ────────────────────────────────────────────────────────────
+  // ─── Reminder countdown ───────────────────────────────────────────────────────
+  // A floating timer in the top-right corner showing the time left until the
+  // next reminder. Purely visual; the reminder itself fires from the background
+  // alarm. Started by the background's "feedless:countdownStart" message.
   let countdownTickId = null;
   let countdownEl = null;
 
@@ -59,7 +62,12 @@
     let remaining = seconds;
     const tick = () => {
       if (!countdownEl) return;
-      countdownEl.textContent = `⏰ ${remaining}s`;
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      countdownEl.textContent =
+        mins > 0
+          ? `⏰ ${mins}m ${String(secs).padStart(2, "0")}s`
+          : `⏰ ${secs}s`;
       if (remaining <= 0) {
         clearCountdown();
         return;

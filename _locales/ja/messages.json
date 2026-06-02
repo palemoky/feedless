@@ -16,10 +16,6 @@
   },
   "tabReminder":      { "message": "リマインド" },
   "reminderOff":      { "message": "オフ" },
-  "reminderSeconds":  {
-    "message": "$SECS$秒",
-    "placeholders": { "secs": { "content": "$1", "example": "3" } }
-  },
   "reminderMinutes":  {
     "message": "$MINS$分",
     "placeholders": { "mins": { "content": "$1", "example": "10" } }
