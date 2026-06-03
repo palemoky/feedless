@@ -8,7 +8,7 @@ Do you keep getting pulled away by recommended content every time you open a web
 
 ## Install
 
-<a href="https://chromewebstore.google.com/detail/feedless/ailmnjpffnjjcbikphhljmopoklhofmf">
+<a href="https://chromewebstore.google.com/detail/feedless/mkkdldcdmlfnodnlknphfffekdbmnnji">
   <img src="https://developer.chrome.com/static/docs/webstore/branding/image/UV4C4ybeBTsZt43U4xis.png" alt="Available in the Chrome Web Store" height="58">
 </a>
 
