@@ -1,6 +1,6 @@
 VERSION := $(shell node -p "require('./manifest.json').version")
 
-.PHONY: release build manifest
+.PHONY: release build build-all manifest
 
 # Colors for terminal output
 BLUE := \033[0;34m
@@ -14,8 +14,12 @@ manifest:  ## Regenerate manifest host lists from src/sites.js (single source of
 	@node scripts/gen-manifest.cjs
 	@echo "$(GREEN)✓ manifest.json hosts regenerated from src/sites.js$(NC)"
 
-build: manifest  ## Create extension zip for distribution
+build: manifest  ## Create extension zip for distribution (Chrome/Edge)
 	zip -r feedless-v$(VERSION).zip _locales icons src manifest.json
+
+build-all: manifest  ## Build Chrome, Edge, and Firefox zips into dist/
+	@node scripts/pack.cjs
+	@echo "$(GREEN)✓ Built Chrome, Edge, and Firefox packages in dist/$(NC)"
 
 release:  ## Create and push version tag
 	@if [ -n "$$(git status --porcelain)" ]; then \

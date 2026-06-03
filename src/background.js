@@ -1,6 +1,12 @@
 "use strict";
-importScripts("sites.js");
-importScripts("config.js");
+// Chrome's service worker pulls in shared modules via importScripts. Firefox
+// MV3 runs an event page where importScripts is undefined, so the Firefox build
+// lists these files in background.scripts instead — guard the call so the same
+// source works for both targets.
+if (typeof importScripts === "function") {
+  importScripts("sites.js");
+  importScripts("config.js");
+}
 
 const ALARM_PREFIX = "feedless_reminder_";
 const SESSION_KEY_PREFIX = "reminderTab_";

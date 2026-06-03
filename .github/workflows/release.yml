@@ -21,11 +21,11 @@ jobs:
       - name: Set production mode
         run: sed -i 's/const DEV_MODE = true/const DEV_MODE = false/' src/config.js
 
-      - name: Build zip
-        run: make build
+      - name: Build zips (Chrome, Edge, Firefox)
+        run: make build-all
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: "*.zip"
+          files: "dist/*.zip"
           generate_release_notes: true

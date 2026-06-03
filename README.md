@@ -6,13 +6,19 @@
 
 Do you keep getting pulled away by recommended content every time you open a website? Feedless is a browser extension that hides homepage feeds, recommendation sections, and other distracting elements — giving you back control of your attention.
 
+## Install
+
+<a href="https://chromewebstore.google.com/detail/feedless/ailmnjpffnjjcbikphhljmopoklhofmf">
+  <img src="https://developer.chrome.com/static/docs/webstore/branding/image/UV4C4ybeBTsZt43U4xis.png" alt="Available in the Chrome Web Store" height="58">
+</a>
+
 ## Supported Sites
 
 | Video    | Social      | Shopping | Other |
 | -------- | ----------- | -------- | ----- |
 | YouTube  | X (Twitter) | Taobao   | Baidu |
-| TikTok   | Xiaohongshu   | JD.com   |       |
-| Bilibili | Weibo |          |       |
+| TikTok   | Xiaohongshu | JD.com   |       |
+| Bilibili | Weibo       |          |       |
 | Douyin   | Zhihu       |          |       |
 
 ## Reminders
@@ -34,5 +40,22 @@ feedless/
 │   ├── popup.html/js    # Popup UI with a toggle for each site
 │   └── background.js    # Service worker (storage initialization)
 ├── _locales/            # Localization strings
-└── icons/               # Extension icons
+├── icons/               # Extension icons
+└── scripts/             # Build tooling (manifest generation, packaging)
 ```
+
+## Building
+
+`make build-all` writes one zip per browser to `dist/`:
+
+```
+dist/feedless-chrome-v<version>.zip    # Chrome Web Store
+dist/feedless-edge-v<version>.zip      # Microsoft Edge Add-ons
+dist/feedless-firefox-v<version>.zip   # Firefox (addons.mozilla.org)
+```
+
+Chrome and Edge ship the canonical `manifest.json`. The Firefox build is
+transformed automatically (event-page `background.scripts` instead of a service
+worker, plus the required `browser_specific_settings.gecko` block) by
+`scripts/pack.cjs`. Set `DEV_MODE = false` in `src/config.js` before packaging;
+the release workflow does this automatically when you `make release`.
