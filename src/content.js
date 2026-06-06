@@ -36,32 +36,44 @@
   // alarm. Started by the background's "feedless:countdownStart" message.
   let countdownTickId = null;
   let countdownEl = null;
+  // Absolute timestamp (ms) the reminder will fire. The display is derived from
+  // this single source of truth — broadcast by the background — rather than a
+  // local snapshot, so multiple tabs of the same site all show the same number
+  // and switching tabs no longer makes the count "jump".
+  let countdownFireAt = null;
 
-  function showCountdown(seconds) {
-    clearCountdown();
+  function showCountdown(fireAt) {
+    if (!document.body) return;
+    countdownFireAt = fireAt;
 
-    countdownEl = document.createElement("div");
-    countdownEl.id = "feedless-countdown";
-    countdownEl.style.cssText = [
-      "position:fixed",
-      "top:14px",
-      "right:14px",
-      "z-index:2147483646",
-      "background:rgba(15,15,15,0.82)",
-      "color:#fff",
-      "padding:7px 12px 7px 10px",
-      "border-radius:10px",
-      'font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",monospace',
-      "border:1.5px solid rgba(220,38,38,0.65)",
-      "box-shadow:0 2px 10px rgba(0,0,0,0.4)",
-      "pointer-events:none",
-      "letter-spacing:0.3px",
-    ].join(";");
-    document.body.appendChild(countdownEl);
+    if (!countdownEl) {
+      countdownEl = document.createElement("div");
+      countdownEl.id = "feedless-countdown";
+      countdownEl.style.cssText = [
+        "position:fixed",
+        "top:14px",
+        "right:14px",
+        "z-index:2147483646",
+        "background:rgba(15,15,15,0.82)",
+        "color:#fff",
+        "padding:7px 12px 7px 10px",
+        "border-radius:10px",
+        'font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",monospace',
+        "border:1.5px solid rgba(220,38,38,0.65)",
+        "box-shadow:0 2px 10px rgba(0,0,0,0.4)",
+        "pointer-events:none",
+        "letter-spacing:0.3px",
+      ].join(";");
+      document.body.appendChild(countdownEl);
+    }
 
-    let remaining = seconds;
+    clearTimeout(countdownTickId);
     const tick = () => {
-      if (!countdownEl) return;
+      if (!countdownEl || countdownFireAt == null) return;
+      const remaining = Math.max(
+        0,
+        Math.round((countdownFireAt - Date.now()) / 1000),
+      );
       const mins = Math.floor(remaining / 60);
       const secs = remaining % 60;
       countdownEl.textContent =
@@ -69,11 +81,12 @@
           ? `⏰ ${mins}m ${String(secs).padStart(2, "0")}s`
           : `⏰ ${secs}s`;
       if (remaining <= 0) {
-        clearCountdown();
+        clearTimeout(countdownTickId);
         return;
       }
-      remaining--;
-      countdownTickId = setTimeout(tick, 1000);
+      // Tick faster than 1s so the wall-clock-derived display stays accurate
+      // even if a timer is throttled in a background tab.
+      countdownTickId = setTimeout(tick, 250);
     };
     tick();
   }
@@ -81,6 +94,7 @@
   function clearCountdown() {
     clearTimeout(countdownTickId);
     countdownTickId = null;
+    countdownFireAt = null;
     countdownEl?.remove();
     countdownEl = null;
   }
@@ -487,7 +501,10 @@
       showReminder();
     }
     if (msg.type === "feedless:countdownStart") {
-      showCountdown(msg.seconds);
+      showCountdown(msg.fireAt);
+    }
+    if (msg.type === "feedless:countdownStop") {
+      clearCountdown();
     }
   });
 

@@ -11,6 +11,46 @@ if (typeof importScripts === "function") {
 const ALARM_PREFIX = "feedless_reminder_";
 const SESSION_KEY_PREFIX = "reminderTab_";
 const ACCUMULATED_KEY_PREFIX = "accumulated_";
+// Absolute timestamp (ms) each category's reminder is scheduled to fire. The
+// per-tab countdown overlay is derived from this so every tab of the same site
+// shows the same deadline instead of an independently-drifting local snapshot.
+const FIRE_AT_KEY_PREFIX = "fireAt_";
+
+// Send a message to every open tab that belongs to `category`, so multi-tab /
+// multi-window users get a consistent reminder + countdown across all of them
+// rather than only on the single most-recently-active tab. Tabs we lack host
+// permission for have no `url`; those are skipped.
+async function broadcastToCategory(category, message) {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+  for (const tab of tabs) {
+    if (!tab.id || !tab.url) continue;
+    let site;
+    try {
+      site = getSiteByHostname(new URL(tab.url).hostname);
+    } catch {
+      continue;
+    }
+    if (site?.category === category) {
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+    }
+  }
+}
+
+// Tell every category except `keepCategory` to drop its countdown overlay. Used
+// when the active tab changes so stale overlays on other-category tabs clear,
+// without racing the fresh countdownStart we send for the new category.
+async function broadcastCountdownStop(keepCategory) {
+  const categories = [...new Set(SITES.map((s) => s.category))];
+  for (const c of categories) {
+    if (c === keepCategory) continue;
+    broadcastToCategory(c, { type: "feedless:countdownStop" });
+  }
+}
 
 // chrome.alarms silently clamps any delay below ~30s (and logs a warning for
 // unpacked builds). When the user switches back to a site having already spent
@@ -117,58 +157,76 @@ async function saveCurrentCategoryElapsed() {
   await clearActive();
 }
 
-function scheduleReminder(category, tabId, remainingSecs) {
+async function scheduleReminder(category, tabId, remainingSecs) {
   chrome.storage.session.set({ [SESSION_KEY_PREFIX + category]: tabId });
-  // In DEV_MODE, show a live countdown overlay on the tab. Purely visual: the
-  // reminder always fires from chrome.alarms, which persists across worker
-  // restarts (setTimeout would not).
+
+  // The alarm cannot fire sooner than MIN_ALARM_SECS, so the countdown must
+  // count down to the *effective* fire time — otherwise it would hit 0 and then
+  // hang while the clamped alarm finishes.
+  const delaySecs = Math.max(remainingSecs, MIN_ALARM_SECS);
+  const fireAt = Date.now() + delaySecs * 1000;
+  await chrome.storage.session.set({ [FIRE_AT_KEY_PREFIX + category]: fireAt });
+
+  // In DEV_MODE, show a live countdown overlay. Purely visual: the reminder
+  // always fires from chrome.alarms, which persists across worker restarts
+  // (setTimeout would not). Broadcast to every tab of this category so multiple
+  // same-site tabs stay in sync instead of each running its own clock.
   if (DEV_MODE) {
-    chrome.tabs
-      .sendMessage(tabId, {
-        type: "feedless:countdownStart",
-        seconds: Math.round(remainingSecs),
-      })
-      .catch(() => {});
+    broadcastToCategory(category, { type: "feedless:countdownStart", fireAt });
   }
+
   chrome.alarms.create(ALARM_PREFIX + category, {
-    delayInMinutes: Math.max(remainingSecs, MIN_ALARM_SECS) / 60,
+    delayInMinutes: delaySecs / 60,
   });
 }
 
 async function handleReminderFired(category) {
-  const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
-  const tabId = data[SESSION_KEY_PREFIX + category];
-  if (!tabId) return;
-
-  // Only remind if the scheduled tab is the foreground tab of its own window.
-  // Checking tab.active (rather than comparing against the focused window's
-  // active tab) avoids silently dropping the reminder when the tab lives in a
-  // non-focused window — e.g. side-by-side windows.
-  let tab;
-  try {
-    tab = await chrome.tabs.get(tabId);
-  } catch {
-    chrome.storage.session.remove(SESSION_KEY_PREFIX + category);
-    return;
-  }
-  if (!tab?.active) return;
-
-  const site = await getSiteForTab(tabId);
   const { disabledSites, reminderIntervals } = await getSettings();
-  if (!site || site.category !== category || disabledSites.includes(site.id)) {
+  const interval = reminderIntervals[category] || 0;
+
+  // Find every foreground tab (one per window) that currently shows a site in
+  // this category. Checking tab.active per window — rather than only the single
+  // tracked tab — means the reminder shows wherever the user is actually
+  // looking, even if they switched between multiple same-site tabs or windows.
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({ active: true });
+  } catch {
+    tabs = [];
+  }
+  const targets = [];
+  for (const tab of tabs) {
+    if (!tab.id || !tab.url) continue;
+    let site;
+    try {
+      site = getSiteByHostname(new URL(tab.url).hostname);
+    } catch {
+      continue;
+    }
+    if (site?.category === category && !disabledSites.includes(site.id)) {
+      targets.push(tab.id);
+    }
+  }
+
+  if (!interval || targets.length === 0) {
     chrome.storage.session.remove(SESSION_KEY_PREFIX + category);
     return;
   }
-
-  const interval = reminderIntervals[category] || 0;
-  if (!interval) return;
 
   // Reset accumulated time and restart the cycle from now.
   await resetAccumulated(category);
   await setActive(category, Date.now());
 
-  chrome.tabs.sendMessage(tabId, { type: "feedless:remind" }).catch(() => {});
-  scheduleReminder(category, tabId, interval);
+  for (const id of targets) {
+    chrome.tabs.sendMessage(id, { type: "feedless:remind" }).catch(() => {});
+  }
+
+  // Keep tracking the previously-scheduled tab if it's still a valid target,
+  // otherwise fall back to the first foreground tab we found.
+  const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
+  const tracked = data[SESSION_KEY_PREFIX + category];
+  const nextTab = targets.includes(tracked) ? tracked : targets[0];
+  await scheduleReminder(category, nextTab, interval);
 }
 
 async function clearAllReminderAlarms() {
@@ -176,10 +234,11 @@ async function clearAllReminderAlarms() {
   for (const alarm of alarms) {
     if (alarm.name.startsWith(ALARM_PREFIX)) chrome.alarms.clear(alarm.name);
   }
-  const keys = [...new Set(SITES.map((s) => s.category))].map(
-    (cat) => SESSION_KEY_PREFIX + cat,
-  );
-  chrome.storage.session.remove(keys);
+  const categories = [...new Set(SITES.map((s) => s.category))];
+  chrome.storage.session.remove([
+    ...categories.map((cat) => SESSION_KEY_PREFIX + cat),
+    ...categories.map((cat) => FIRE_AT_KEY_PREFIX + cat),
+  ]);
 }
 
 async function onActiveTabChange(tabId) {
@@ -189,11 +248,18 @@ async function onActiveTabChange(tabId) {
   await clearAllReminderAlarms();
 
   const site = await getSiteForTab(tabId);
-  if (!site) return;
+  if (!site) {
+    // Left all tracked sites — drop every countdown overlay.
+    if (DEV_MODE) await broadcastCountdownStop(null);
+    return;
+  }
 
   const { disabledSites, reminderIntervals } = await getSettings();
   const interval = reminderIntervals[site.category] || 0;
-  if (interval <= 0) return;
+  if (interval <= 0) {
+    if (DEV_MODE) await broadcastCountdownStop(null);
+    return;
+  }
 
   // Schedule based on remaining time for this category.
   const accumulated = await getAccumulated(site.category);
@@ -201,7 +267,10 @@ async function onActiveTabChange(tabId) {
 
   await setActive(site.category, Date.now());
 
-  scheduleReminder(site.category, tabId, remaining);
+  await scheduleReminder(site.category, tabId, remaining);
+  // Clear countdowns left over on other categories (the line above already
+  // (re)started this category's countdown, so don't stop it here).
+  if (DEV_MODE) await broadcastCountdownStop(site.category);
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -215,23 +284,47 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   });
 });
 
+// Count still-open tabs belonging to `category`, excluding `excludeTabId`
+// (the tab currently being removed, which may still appear in queries).
+async function countCategoryTabs(category, excludeTabId) {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  for (const tab of tabs) {
+    if (!tab.id || tab.id === excludeTabId || !tab.url) continue;
+    try {
+      if (getSiteByHostname(new URL(tab.url).hostname)?.category === category) {
+        n++;
+      }
+    } catch {}
+  }
+  return n;
+}
+
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   const data = await chrome.storage.session.get(null);
   for (const [key, val] of Object.entries(data)) {
     if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
       const category = key.slice(SESSION_KEY_PREFIX.length);
 
-      // If this was the actively-timed tab, reset the category's accumulated
-      // time so reopening the site starts a fresh full interval instead of
-      // resuming the near-expired countdown (which would warn immediately).
-      const active = await getActive();
-      if (active?.category === category) {
-        await clearActive();
-      }
-      await resetAccumulated(category);
-
       chrome.alarms.clear(ALARM_PREFIX + category);
-      chrome.storage.session.remove(key);
+      chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
+
+      // The budget is shared across all tabs of the category. Only wipe it when
+      // the last such tab closes — otherwise the remaining tabs keep counting
+      // toward the same interval (the newly-focused tab's onActivated reschedules
+      // using the preserved accumulated time). Reopening after the last one
+      // closes then starts a fresh full interval instead of warning immediately.
+      const remaining = await countCategoryTabs(category, tabId);
+      if (remaining === 0) {
+        const active = await getActive();
+        if (active?.category === category) await clearActive();
+        await resetAccumulated(category);
+      }
     }
   }
 });
