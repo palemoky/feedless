@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Feedless</title>
   <rect width="512" height="512" rx="112" fill="#2563EB"/>
   <g fill="#fff">
-    <rect x="128" y="150" width="256" height="44" rx="22"/>
-    <rect x="128" y="234" width="256" height="44" rx="22"/>
-    <rect x="128" y="318" width="150" height="44" rx="22" opacity="0.35"/>
+    <rect x="120" y="110" width="272" height="72" rx="36"/>
+    <rect x="120" y="222" width="180" height="72" rx="36"/>
+    <circle cx="156" cy="366" r="40"/>
   </g>
 </svg>
