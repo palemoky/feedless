@@ -1,8 +1,9 @@
-# Feedless
-
+<div align="center">
 <p align="center">
-  <img src="icons/app/logo.png" width="96" alt="Feedless logo">
+  <img src="icons/app/logo.svg" width="96" alt="Feedless logo">
 </p>
+# Feedless
+</div>
 
 Do you keep getting pulled away by recommended content every time you open a website? Feedless is a browser extension that hides homepage feeds, recommendation sections, and other distracting elements — giving you back control of your attention.
 
@@ -59,3 +60,4 @@ transformed automatically (event-page `background.scripts` instead of a service
 worker, plus the required `browser_specific_settings.gecko` block) by
 `scripts/pack.cjs`. Set `DEV_MODE = false` in `src/config.js` before packaging;
 the release workflow does this automatically when you `make release`.
+
