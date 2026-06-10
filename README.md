@@ -1,8 +1,8 @@
 <div align="center">
-<p align="center">
   <img src="icons/app/logo.svg" width="96" alt="Feedless logo">
-</p>
+
 # Feedless
+
 </div>
 
 Do you keep getting pulled away by recommended content every time you open a website? Feedless is a browser extension that hides homepage feeds, recommendation sections, and other distracting elements — giving you back control of your attention.
