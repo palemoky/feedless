@@ -239,7 +239,23 @@ async function handleReminderFired(category) {
   }
 
   if (!interval || targets.length === 0) {
-    chrome.storage.session.remove(SESSION_KEY_PREFIX + category);
+    // The interval fully elapsed but the user isn't looking at this category
+    // (e.g. focus moved to another window, which fires no tab event). Consume
+    // the cycle exactly as a shown reminder would: reset the budget and stop
+    // the running stretch. Leaving `active` set here would silently bank all
+    // the away time into the budget and re-stamp lastLeft on every return, so
+    // the grace period could never expire it — every later visit would start
+    // with an exhausted budget.
+    await resetAccumulated(category);
+    const active = await getActive();
+    if (active?.category === category) await clearActive();
+    await setLastLeft(category, Date.now());
+    chrome.storage.session.remove([
+      SESSION_KEY_PREFIX + category,
+      FIRE_AT_KEY_PREFIX + category,
+    ]);
+    // Background tabs of this category may still show a countdown pinned at 0.
+    if (DEV_MODE) broadcastToCategory(category, { type: "feedless:countdownStop" });
     return;
   }
 
@@ -295,12 +311,21 @@ async function onActiveTabChange(tabId) {
   // budget left over from a visit that ended more than the grace period ago.
   await expireStaleBudget(site.category);
   const accumulated = await getAccumulated(site.category);
-  const remaining = Math.max(interval - accumulated, 1);
+  const remaining = interval - accumulated;
 
   await setActive(site.category, Date.now());
 
-  await scheduleReminder(site.category, tabId, remaining);
-  // Clear countdowns left over on other categories (the line above already
+  if (remaining <= 0) {
+    // Budget already exhausted: remind right away instead of arming a clamped
+    // 30s alarm. The alarm floor made an exhausted budget show a 30s countdown
+    // on every visit, and any navigation inside those 30s re-armed the alarm —
+    // so a user clicking between videos could postpone the reminder forever.
+    // handleReminderFired resets the budget and schedules the next full cycle.
+    await handleReminderFired(site.category);
+  } else {
+    await scheduleReminder(site.category, tabId, remaining);
+  }
+  // Clear countdowns left over on other categories (the lines above already
   // (re)started this category's countdown, so don't stop it here).
   if (DEV_MODE) await broadcastCountdownStop(site.category);
 }
@@ -324,6 +349,27 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   queueActiveTabChange(tabId);
 });
 
+// Switching between Chrome windows fires no tab event, so without this the
+// previous window's category kept "running" while the user worked elsewhere —
+// the away time was silently banked into its budget and every visit started
+// with the budget exhausted (a permanent 30s countdown). Treat a window switch
+// exactly like a tab switch: bank the old stretch, reschedule for whatever the
+// newly focused window shows. Focus loss to another app (WINDOW_ID_NONE) is
+// deliberately ignored: a video may keep playing while the user takes notes,
+// and the running cycle still fires on that window's active tab.
+chrome.windows.onFocusChanged.addListener(
+  serialized(async (windowId) => {
+    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+    let tab;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, windowId });
+    } catch {
+      return;
+    }
+    if (tab?.id) await onActiveTabChange(tab.id);
+  }),
+);
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status !== "complete") return;
   chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
@@ -331,25 +377,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   });
 });
 
-// Count still-open tabs belonging to `category`, excluding `excludeTabId`
+// Still-open tabs belonging to `category`, excluding `excludeTabId`
 // (the tab currently being removed, which may still appear in queries).
-async function countCategoryTabs(category, excludeTabId) {
+async function getCategoryTabs(category, excludeTabId) {
   let tabs;
   try {
     tabs = await chrome.tabs.query({});
   } catch {
-    return 0;
+    return [];
   }
-  let n = 0;
+  const matches = [];
   for (const tab of tabs) {
     if (!tab.id || tab.id === excludeTabId || !tab.url) continue;
     try {
       if (getSiteByHostname(new URL(tab.url).hostname)?.category === category) {
-        n++;
+        matches.push(tab);
       }
     } catch {}
   }
-  return n;
+  return matches;
 }
 
 chrome.tabs.onRemoved.addListener(
@@ -358,8 +404,18 @@ chrome.tabs.onRemoved.addListener(
     for (const [key, val] of Object.entries(data)) {
       if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
         const category = key.slice(SESSION_KEY_PREFIX.length);
-        chrome.alarms.clear(ALARM_PREFIX + category);
-        chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
+        // Only kill the alarm when no tab of the category survives. If the
+        // tracked tab dies while siblings remain (e.g. closing one of several
+        // video windows), retarget the bookkeeping key and let the running
+        // alarm fire — clearing it here left the surviving tabs with a dead
+        // countdown and no reminder until the next tab event.
+        const [sibling] = await getCategoryTabs(category, tabId);
+        if (sibling) {
+          chrome.storage.session.set({ [key]: sibling.id });
+        } else {
+          chrome.alarms.clear(ALARM_PREFIX + category);
+          chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
+        }
       }
     }
 
@@ -380,7 +436,7 @@ chrome.tabs.onRemoved.addListener(
     if (active?.category) categories.add(active.category);
 
     for (const category of categories) {
-      if ((await countCategoryTabs(category, tabId)) > 0) continue;
+      if ((await getCategoryTabs(category, tabId)).length > 0) continue;
       if (active?.category === category) {
         // Bank the in-progress stretch (this also stamps the leave time).
         await saveCurrentCategoryElapsed();
