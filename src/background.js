@@ -11,6 +11,12 @@ if (typeof importScripts === "function") {
 const ALARM_PREFIX = "feedless_reminder_";
 const SESSION_KEY_PREFIX = "reminderTab_";
 const ACCUMULATED_KEY_PREFIX = "accumulated_";
+// Timestamp (ms) the user last left a category (switched away or closed its
+// last tab). The accumulated budget survives short absences — so closing and
+// immediately reopening a site cannot dodge the reminder — but is reset when
+// the user returns after BUDGET_RESET_SECS, which we treat as a real break.
+const LAST_LEFT_KEY_PREFIX = "lastLeft_";
+const BUDGET_RESET_SECS = 5 * 60;
 // Absolute timestamp (ms) each category's reminder is scheduled to fire. The
 // per-tab countdown overlay is derived from this so every tab of the same site
 // shows the same deadline instead of an independently-drifting local snapshot.
@@ -99,7 +105,7 @@ async function reconcileActiveTab() {
     active: true,
     currentWindow: true,
   });
-  if (activeTab?.id) await onActiveTabChange(activeTab.id);
+  if (activeTab?.id) await queueActiveTabChange(activeTab.id);
 }
 
 // Browser startup and plain worker wake-ups both run the top-level script;
@@ -148,12 +154,36 @@ async function resetAccumulated(category) {
   await chrome.storage.session.remove(ACCUMULATED_KEY_PREFIX + category);
 }
 
+async function getLastLeft(category) {
+  const data = await chrome.storage.session.get(
+    LAST_LEFT_KEY_PREFIX + category,
+  );
+  return data[LAST_LEFT_KEY_PREFIX + category] || 0;
+}
+
+async function setLastLeft(category, timestamp) {
+  await chrome.storage.session.set({
+    [LAST_LEFT_KEY_PREFIX + category]: timestamp,
+  });
+}
+
+// Reset the category's budget if the user has been away longer than the grace
+// period. Called when a category becomes active again; a fresh leave stamp is
+// written on every switch away, so continuous use never trips this.
+async function expireStaleBudget(category) {
+  const lastLeft = await getLastLeft(category);
+  if (lastLeft && Date.now() - lastLeft >= BUDGET_RESET_SECS * 1000) {
+    await resetAccumulated(category);
+  }
+}
+
 // Save elapsed time for the active category to session storage.
 async function saveCurrentCategoryElapsed() {
   const active = await getActive();
   if (!active?.category || !active.start) return;
   const elapsed = (Date.now() - active.start) / 1000;
   await addAccumulated(active.category, elapsed);
+  await setLastLeft(active.category, Date.now());
   await clearActive();
 }
 
@@ -261,7 +291,9 @@ async function onActiveTabChange(tabId) {
     return;
   }
 
-  // Schedule based on remaining time for this category.
+  // Schedule based on remaining time for this category, first dropping any
+  // budget left over from a visit that ended more than the grace period ago.
+  await expireStaleBudget(site.category);
   const accumulated = await getAccumulated(site.category);
   const remaining = Math.max(interval - accumulated, 1);
 
@@ -273,14 +305,29 @@ async function onActiveTabChange(tabId) {
   if (DEV_MODE) await broadcastCountdownStop(site.category);
 }
 
+// Extension event listeners run concurrently: a tab switch plus navigation
+// fires onActivated and onUpdated almost simultaneously, and both would read
+// the same active.start and bank the same elapsed stretch twice — doubling the
+// accumulated budget and making reminders fire far too early. Funnel every
+// state-mutating handler through one promise chain so they run one at a time.
+let stateChain = Promise.resolve();
+function serialized(fn) {
+  return (...args) => {
+    stateChain = stateChain.then(() => fn(...args)).catch(() => {});
+    return stateChain;
+  };
+}
+
+const queueActiveTabChange = serialized(onActiveTabChange);
+
 chrome.tabs.onActivated.addListener(({ tabId }) => {
-  onActiveTabChange(tabId);
+  queueActiveTabChange(tabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status !== "complete") return;
   chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
-    if (activeTab?.id === tabId) onActiveTabChange(tabId);
+    if (activeTab?.id === tabId) queueActiveTabChange(tabId);
   });
 });
 
@@ -305,33 +352,50 @@ async function countCategoryTabs(category, excludeTabId) {
   return n;
 }
 
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const data = await chrome.storage.session.get(null);
-  for (const [key, val] of Object.entries(data)) {
-    if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
-      const category = key.slice(SESSION_KEY_PREFIX.length);
-
-      chrome.alarms.clear(ALARM_PREFIX + category);
-      chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
-
-      // The budget is shared across all tabs of the category. Only wipe it when
-      // the last such tab closes — otherwise the remaining tabs keep counting
-      // toward the same interval (the newly-focused tab's onActivated reschedules
-      // using the preserved accumulated time). Reopening after the last one
-      // closes then starts a fresh full interval instead of warning immediately.
-      const remaining = await countCategoryTabs(category, tabId);
-      if (remaining === 0) {
-        const active = await getActive();
-        if (active?.category === category) await clearActive();
-        await resetAccumulated(category);
+chrome.tabs.onRemoved.addListener(
+  serialized(async (tabId) => {
+    const data = await chrome.storage.session.get(null);
+    for (const [key, val] of Object.entries(data)) {
+      if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
+        const category = key.slice(SESSION_KEY_PREFIX.length);
+        chrome.alarms.clear(ALARM_PREFIX + category);
+        chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
       }
     }
-  }
-});
+
+    // Budget bookkeeping must not depend on the tracked-tab key above: that key
+    // is wiped on every tab switch, so a category tab closed while another site
+    // was focused would otherwise leak its accumulated budget for the whole
+    // session and surface hours later as a near-instant reminder. Instead, for
+    // every category with a banked or running budget, detect "last tab closed"
+    // directly and stamp the leave time. The budget is then kept across a quick
+    // close-and-reopen (which previously reset it, letting users dodge the
+    // reminder) and expires via the grace period on the next visit.
+    const active = await getActive();
+    const categories = new Set(
+      Object.keys(data)
+        .filter((key) => key.startsWith(ACCUMULATED_KEY_PREFIX))
+        .map((key) => key.slice(ACCUMULATED_KEY_PREFIX.length)),
+    );
+    if (active?.category) categories.add(active.category);
+
+    for (const category of categories) {
+      if ((await countCategoryTabs(category, tabId)) > 0) continue;
+      if (active?.category === category) {
+        // Bank the in-progress stretch (this also stamps the leave time).
+        await saveCurrentCategoryElapsed();
+      } else {
+        await setLastLeft(category, Date.now());
+      }
+    }
+  }),
+);
+
+const queueReminderFired = serialized(handleReminderFired);
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name.startsWith(ALARM_PREFIX)) {
-    handleReminderFired(alarm.name.slice(ALARM_PREFIX.length));
+    queueReminderFired(alarm.name.slice(ALARM_PREFIX.length));
   }
 });
 
@@ -341,11 +405,12 @@ chrome.runtime.onMessage.addListener((msg) => {
     const categories = [...new Set(SITES.map((s) => s.category))];
     chrome.storage.session.remove([
       ...categories.map((cat) => ACCUMULATED_KEY_PREFIX + cat),
+      ...categories.map((cat) => LAST_LEFT_KEY_PREFIX + cat),
       ACTIVE_KEY,
     ]);
 
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      if (tab?.id) onActiveTabChange(tab.id);
+      if (tab?.id) queueActiveTabChange(tab.id);
     });
   }
 });
