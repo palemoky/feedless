@@ -101,9 +101,22 @@
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
 
+  // A path rule matches the current pathname exactly, or as a prefix when it
+  // ends with "/*" — e.g. "/hot/*" covers /hot/weibo, /hot/realtimehot, …
+  // (needed because feed pages often carry dynamic trailing segments).
+  function pathMatches(rule) {
+    if (rule.endsWith("/*")) {
+      const base = rule.slice(0, -2);
+      return (
+        location.pathname === base || location.pathname.startsWith(base + "/")
+      );
+    }
+    return location.pathname === rule;
+  }
+
   function shouldApply() {
     if (!site.paths) return true;
-    return site.paths.includes(location.pathname);
+    return site.paths.some(pathMatches);
   }
 
   // Selector entries are either plain strings (apply on every page of the
@@ -113,10 +126,7 @@
   function activeSelectors() {
     return (site.selectors ?? [])
       .filter(
-        (s) =>
-          typeof s === "string" ||
-          !s.paths ||
-          s.paths.includes(location.pathname),
+        (s) => typeof s === "string" || !s.paths || s.paths.some(pathMatches),
       )
       .map((s) => (typeof s === "string" ? s : s.css));
   }
@@ -553,6 +563,10 @@
         }
       }
 
+      // Re-apply synchronously from the cached enabled state so path-scoped
+      // CSS switches without a flash of unblocked content, then re-check
+      // storage in case the site was toggled since the cache was set.
+      if (isEnabled !== null) apply(isEnabled);
       chrome.storage.sync.get({ disabledSites: [] }, ({ disabledSites }) => {
         apply(!disabledSites.includes(site.id));
       });
