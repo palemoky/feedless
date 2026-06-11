@@ -22,9 +22,14 @@
   },
   "reminderHint":     { "message": "Alerte plein écran après trop de temps sur un site bloqué" },
   "reminderStyleLabel":   { "message": "Style d'alerte" },
-  "reminderStyleHud":     { "message": "Verrouillage HUD" },
+  "reminderStyleHud":     { "message": "HUD" },
   "reminderStyleGlitch":  { "message": "Glitch" },
-  "reminderStyleBreathe": { "message": "Lueur respirante" },
+  "reminderStyleBreathe": { "message": "Halo" },
+  "reminderStyleStamp":   { "message": "Tampon" },
+  "reminderStylePulse":   { "message": "Pouls" },
+  "reminderStyleDim":     { "message": "Fondu" },
+  "reminderStyleFog":     { "message": "Buée" },
+  "reminderStyleClosed":  { "message": "Fermé" },
   "reminderPreview":      { "message": "Aperçu" },
   "reminderPreviewHint":  { "message": "Aperçu de l'alerte sur l'onglet actuel" }
 }

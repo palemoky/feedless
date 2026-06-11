@@ -22,9 +22,14 @@
   },
   "reminderHint":     { "message": "在屏蔽的网站上浏览超时后全屏提醒" },
   "reminderStyleLabel":   { "message": "提醒样式" },
-  "reminderStyleHud":     { "message": "HUD 锁定" },
-  "reminderStyleGlitch":  { "message": "数字故障" },
-  "reminderStyleBreathe": { "message": "呼吸光晕" },
+  "reminderStyleHud":     { "message": "锁定" },
+  "reminderStyleGlitch":  { "message": "故障" },
+  "reminderStyleBreathe": { "message": "光晕" },
+  "reminderStyleStamp":   { "message": "印章" },
+  "reminderStylePulse":   { "message": "心跳" },
+  "reminderStyleDim":     { "message": "暗场" },
+  "reminderStyleFog":     { "message": "起雾" },
+  "reminderStyleClosed":  { "message": "打烊" },
   "reminderPreview":      { "message": "试看" },
   "reminderPreviewHint":  { "message": "在当前标签页预览提醒效果" }
 }

@@ -22,9 +22,14 @@
   },
   "reminderHint":     { "message": "Full-screen alert after spending time on a blocked site" },
   "reminderStyleLabel":   { "message": "Alert style" },
-  "reminderStyleHud":     { "message": "HUD lock-on" },
+  "reminderStyleHud":     { "message": "HUD" },
   "reminderStyleGlitch":  { "message": "Glitch" },
-  "reminderStyleBreathe": { "message": "Breathing glow" },
+  "reminderStyleBreathe": { "message": "Glow" },
+  "reminderStyleStamp":   { "message": "Stamp" },
+  "reminderStylePulse":   { "message": "Pulse" },
+  "reminderStyleDim":     { "message": "Dim" },
+  "reminderStyleFog":     { "message": "Fog" },
+  "reminderStyleClosed":  { "message": "Closed" },
   "reminderPreview":      { "message": "Preview" },
   "reminderPreviewHint":  { "message": "Preview the alert on the current tab" }
 }

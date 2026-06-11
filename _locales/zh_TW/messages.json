@@ -22,9 +22,14 @@
   },
   "reminderHint":     { "message": "在封鎖的網站上瀏覽超時後全螢幕提醒" },
   "reminderStyleLabel":   { "message": "提醒樣式" },
-  "reminderStyleHud":     { "message": "HUD 鎖定" },
-  "reminderStyleGlitch":  { "message": "數位故障" },
-  "reminderStyleBreathe": { "message": "呼吸光暈" },
+  "reminderStyleHud":     { "message": "鎖定" },
+  "reminderStyleGlitch":  { "message": "故障" },
+  "reminderStyleBreathe": { "message": "光暈" },
+  "reminderStyleStamp":   { "message": "印章" },
+  "reminderStylePulse":   { "message": "心跳" },
+  "reminderStyleDim":     { "message": "暗場" },
+  "reminderStyleFog":     { "message": "起霧" },
+  "reminderStyleClosed":  { "message": "打烊" },
   "reminderPreview":      { "message": "試看" },
   "reminderPreviewHint":  { "message": "在目前分頁預覽提醒效果" }
 }

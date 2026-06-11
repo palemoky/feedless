@@ -23,6 +23,11 @@ const REMINDER_STYLES = [
   { id: "glitch", label: () => t("reminderStyleGlitch") },
   { id: "hud", label: () => t("reminderStyleHud") },
   { id: "breathe", label: () => t("reminderStyleBreathe") },
+  { id: "stamp", label: () => t("reminderStyleStamp") },
+  { id: "pulse", label: () => t("reminderStylePulse") },
+  { id: "dim", label: () => t("reminderStyleDim") },
+  { id: "fog", label: () => t("reminderStyleFog") },
+  { id: "closed", label: () => t("reminderStyleClosed") },
 ];
 
 async function getDisabledSites() {

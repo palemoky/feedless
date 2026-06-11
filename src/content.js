@@ -337,9 +337,16 @@
   function renderReminder(styleId) {
     if (document.getElementById("feedless-remind-overlay")) return;
     const render =
-      { breathe: renderBreathe, hud: renderHud, glitch: renderGlitch }[
-        styleId
-      ] || renderGlitch;
+      {
+        breathe: renderBreathe,
+        hud: renderHud,
+        glitch: renderGlitch,
+        stamp: renderStamp,
+        pulse: renderPulse,
+        dim: renderDim,
+        fog: renderFog,
+        closed: renderClosed,
+      }[styleId] || renderGlitch;
     render();
   }
 
@@ -520,6 +527,263 @@
         <div class="fl-txt">STOP · GET BACK</div>
       </div>
       <div class="fl-scanlines"></div>`,
+    );
+  }
+
+  // ── stamp: a rubber stamp slams down with a screen jolt ────────────────────
+  function renderStamp() {
+    mountReminderOverlay(
+      2600,
+      `<style>
+        @keyframes fl-sp-drop {
+          0%   { opacity:0; transform:rotate(-11deg) scale(3.2); }
+          14%  { opacity:1; transform:rotate(-11deg) scale(1); }
+          20%  { transform:rotate(-9deg) scale(1.07); }
+          26%  { transform:rotate(-10deg) scale(1); }
+          82%  { opacity:1; }
+          100% { opacity:0; }
+        }
+        @keyframes fl-sp-jolt {
+          0%,13% { transform:translate(0,0); }
+          15% { transform:translate(0,7px); }
+          19% { transform:translate(0,-4px); }
+          23% { transform:translate(0,2px); }
+          27%,100% { transform:translate(0,0); }
+        }
+        @keyframes fl-sp-burst {
+          0%,13% { opacity:0; }
+          16% { opacity:1; }
+          50% { opacity:0; }
+          100%{ opacity:0; }
+        }
+        #feedless-remind-overlay .fl-jolt {
+          position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+          animation: fl-sp-jolt 2.6s linear forwards;
+        }
+        #feedless-remind-overlay .fl-burst {
+          position:absolute; inset:0;
+          box-shadow: inset 0 0 160px 30px rgba(${RED},0.55);
+          opacity:0; animation: fl-sp-burst 2.6s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-stamp {
+          padding:18px 36px; border:5px double rgba(${RED},0.95); border-radius:10px;
+          color:rgba(${RED},0.95); font:800 clamp(30px,6vw,76px)/1.15 monospace;
+          letter-spacing:6px; text-align:center; text-transform:uppercase;
+          text-shadow:0 0 14px rgba(${RED},0.5);
+          box-shadow:0 0 22px rgba(${RED},0.35), inset 0 0 18px rgba(${RED},0.25);
+          background:rgba(15,15,15,0.25);
+          animation: fl-sp-drop 2.6s cubic-bezier(.16,1.2,.3,1) forwards;
+        }
+        #feedless-remind-overlay .fl-stamp small {
+          display:block; font-size:0.32em; letter-spacing:9px; text-indent:9px; margin-top:8px; opacity:0.85;
+        }
+      </style>
+      <div class="fl-burst"></div>
+      <div class="fl-jolt"><div class="fl-stamp">STOP<small>GET BACK</small></div></div>`,
+    );
+  }
+
+  // ── pulse: two heartbeats — paired rings radiating from the center ─────────
+  function renderPulse() {
+    const ring = (delay) =>
+      `<div class="fl-ring" style="animation-delay:${delay}s"></div>`;
+    mountReminderOverlay(
+      3000,
+      `<style>
+        @keyframes fl-pl-ring {
+          0%   { transform:translate(-50%,-50%) scale(0.04); opacity:0.95; }
+          70%  { opacity:0.3; }
+          100% { transform:translate(-50%,-50%) scale(1); opacity:0; }
+        }
+        @keyframes fl-pl-beat {
+          0%,8% { box-shadow: inset 0 0 0 0 rgba(${RED},0); }
+          12% { box-shadow: inset 0 0 120px 24px rgba(${RED},0.5); }
+          28% { box-shadow: inset 0 0 40px 6px rgba(${RED},0.12); }
+          40% { box-shadow: inset 0 0 130px 28px rgba(${RED},0.55); }
+          70% { box-shadow: inset 0 0 30px 4px rgba(${RED},0.08); }
+          100%{ box-shadow: inset 0 0 0 0 rgba(${RED},0); }
+        }
+        @keyframes fl-pl-text {
+          0%,10% { opacity:0; } 22% { opacity:1; } 80% { opacity:1; } 100% { opacity:0; }
+        }
+        #feedless-remind-overlay .fl-beat {
+          position:absolute; inset:0; animation: fl-pl-beat 3s ease-out forwards;
+        }
+        #feedless-remind-overlay .fl-ring {
+          position:absolute; top:50%; left:50%; width:130vmax; height:130vmax; border-radius:50%;
+          border:3px solid rgba(${RED},0.8); box-shadow:0 0 24px rgba(${RED},0.45);
+          transform:translate(-50%,-50%) scale(0.04); opacity:0;
+          animation: fl-pl-ring 1.4s cubic-bezier(.2,.6,.4,1) forwards;
+        }
+        #feedless-remind-overlay .fl-word {
+          position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+          color:#fff; font:700 clamp(20px,3.4vw,40px)/1 monospace; letter-spacing:6px;
+          text-shadow:0 0 12px rgba(${RED},0.9); animation: fl-pl-text 3s ease forwards;
+        }
+      </style>
+      <div class="fl-beat"></div>
+      ${ring(0)}${ring(0.18)}${ring(0.84)}${ring(1.02)}
+      <span class="fl-word">STOP · GET BACK</span>`,
+    );
+  }
+
+  // ── dim: the page quietly fades to dark with a minimal prompt ──────────────
+  function renderDim() {
+    mountReminderOverlay(
+      3600,
+      `<style>
+        @keyframes fl-dm-veil {
+          0% { opacity:0; } 22% { opacity:1; } 78% { opacity:1; } 100% { opacity:0; }
+        }
+        @keyframes fl-dm-line {
+          0%,24% { transform:scaleX(0); } 46% { transform:scaleX(1); } 100% { transform:scaleX(1); }
+        }
+        #feedless-remind-overlay .fl-veil {
+          position:absolute; inset:0; background:rgba(6,6,8,0.86);
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+          animation: fl-dm-veil 3.6s ease-in-out forwards;
+        }
+        #feedless-remind-overlay .fl-quiet {
+          color:rgba(255,255,255,0.92);
+          font:300 clamp(18px,2.6vw,30px)/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          letter-spacing:10px; text-indent:10px;
+        }
+        #feedless-remind-overlay .fl-rule {
+          width:min(46vw,360px); height:1px; background:rgba(${RED},0.85);
+          box-shadow:0 0 8px rgba(${RED},0.6); transform:scaleX(0);
+          animation: fl-dm-line 3.6s ease forwards;
+        }
+      </style>
+      <div class="fl-veil">
+        <span class="fl-quiet">STOP · GET BACK</span>
+        <div class="fl-rule"></div>
+      </div>`,
+    );
+  }
+
+  // ── fog: the glass mists over and the message is "wiped" into it ───────────
+  function renderFog() {
+    const letters = [..."STOP · GET BACK"]
+      .map(
+        (ch, i) =>
+          `<span style="animation-delay:${(1.1 + i * 0.09).toFixed(2)}s">${ch === " " ? "&nbsp;" : ch}</span>`,
+      )
+      .join("");
+    mountReminderOverlay(
+      5200,
+      `<style>
+        @keyframes fl-fg-rise {
+          0% { opacity:0; } 26% { opacity:1; } 78% { opacity:1; } 100% { opacity:0; }
+        }
+        @keyframes fl-fg-drift {
+          0% { transform:translate(-4%,2%) scale(1.04); }
+          100% { transform:translate(4%,-2%) scale(1.12); }
+        }
+        @keyframes fl-fg-write { to { opacity:1; } }
+        #feedless-remind-overlay .fl-mist {
+          position:absolute; inset:0;
+          backdrop-filter: blur(7px) saturate(0.8);
+          background: rgba(232,238,244,0.36);
+          animation: fl-fg-rise 5.2s ease-in-out forwards;
+        }
+        #feedless-remind-overlay .fl-cloud {
+          position:absolute; inset:-12%;
+          background:
+            radial-gradient(45% 35% at 28% 30%, rgba(255,255,255,0.55), transparent 70%),
+            radial-gradient(50% 40% at 74% 66%, rgba(255,255,255,0.5), transparent 70%);
+          filter: blur(14px);
+          animation: fl-fg-drift 5.2s ease-in-out forwards;
+        }
+        #feedless-remind-overlay .fl-write {
+          position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+          white-space:nowrap; color:rgba(40,50,60,0.8);
+          font:600 clamp(24px,4.4vw,52px)/1 monospace; letter-spacing:6px;
+          text-shadow:0 1px 1px rgba(255,255,255,0.55);
+        }
+        #feedless-remind-overlay .fl-write span {
+          opacity:0; animation: fl-fg-write 0.45s ease forwards;
+        }
+      </style>
+      <div class="fl-mist">
+        <div class="fl-cloud"></div>
+        <div class="fl-write">${letters}</div>
+      </div>`,
+    );
+  }
+
+  // ── closed: a shop "CLOSED" sign drops in and swings itself still ──────────
+  function renderClosed() {
+    mountReminderOverlay(
+      4200,
+      `<style>
+        @keyframes fl-cd-dim {
+          0% { opacity:0; } 18% { opacity:1; } 80% { opacity:1; } 100% { opacity:0; }
+        }
+        /* Settled offset: -50% recenters the hang block on its own height and
+           the extra 32px shifts the visual centre from the block's midpoint to
+           the sign's midpoint (the 64px cord section sits above the sign). */
+        @keyframes fl-cd-drop {
+          0% { transform:translate(-50%,-160vh); }
+          14% { transform:translate(-50%,calc(-50% - 32px)); }
+          100% { transform:translate(-50%,calc(-50% - 32px)); }
+        }
+        /* Damped pendulum: each half-swing loses amplitude until the sign rests. */
+        @keyframes fl-cd-swing {
+          0%,12% { transform:rotate(0deg); }
+          24% { transform:rotate(13deg); }
+          37% { transform:rotate(-9.5deg); }
+          49% { transform:rotate(6.5deg); }
+          60% { transform:rotate(-4deg); }
+          70% { transform:rotate(2.4deg); }
+          79% { transform:rotate(-1.2deg); }
+          87% { transform:rotate(0.5deg); }
+          94%,100% { transform:rotate(0deg); }
+        }
+        #feedless-remind-overlay .fl-shade {
+          position:absolute; inset:0; background:rgba(8,8,12,0.6);
+          animation: fl-cd-dim 4.2s ease forwards;
+        }
+        #feedless-remind-overlay .fl-hang {
+          position:absolute; top:50%; left:50%;
+          animation: fl-cd-drop 4.2s cubic-bezier(.34,1.3,.45,1) forwards;
+        }
+        #feedless-remind-overlay .fl-nail {
+          position:absolute; top:-5px; left:50%; transform:translateX(-50%);
+          width:9px; height:9px; border-radius:50%;
+          background:#e8e8e8; box-shadow:0 1px 3px rgba(0,0,0,0.6);
+        }
+        /* padding-top (not a margin on the sign) keeps the sign's offset from
+           collapsing through this wrapper, so the cords stay anchored between
+           the nail and the sign's top edge and the swing pivots at the nail. */
+        #feedless-remind-overlay .fl-pendulum {
+          transform-origin:50% 0; padding-top:64px;
+          animation: fl-cd-swing 4.2s ease-in-out forwards;
+        }
+        #feedless-remind-overlay .fl-cord {
+          position:absolute; top:0; left:50%; width:2px; height:68px;
+          background:rgba(235,235,235,0.85); transform-origin:50% 0;
+        }
+        #feedless-remind-overlay .fl-sign {
+          padding:22px 44px; text-align:center;
+          background:rgba(16,18,24,0.94); border:3px solid rgba(${RED},0.9);
+          border-radius:12px;
+          box-shadow:0 8px 30px rgba(0,0,0,0.55), 0 0 18px rgba(${RED},0.35);
+          color:#fff; font:800 clamp(34px,6vw,64px)/1.1 monospace; letter-spacing:8px;
+        }
+        #feedless-remind-overlay .fl-sign small {
+          display:block; margin-top:10px; font-size:0.26em;
+          letter-spacing:7px; text-indent:7px; color:rgba(${RED},0.95);
+        }
+      </style>
+      <div class="fl-shade"></div>
+      <div class="fl-hang">
+        <div class="fl-pendulum">
+          <div class="fl-cord" style="transform:translateX(-1px) rotate(20deg)"></div>
+          <div class="fl-cord" style="transform:translateX(-1px) rotate(-20deg)"></div>
+          <div class="fl-sign">CLOSED<small>GET BACK LATER</small></div>
+        </div>
+        <div class="fl-nail"></div>
+      </div>`,
     );
   }
 
