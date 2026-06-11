@@ -106,25 +106,45 @@
     return site.paths.includes(location.pathname);
   }
 
+  // Selector entries are either plain strings (apply on every page of the
+  // site) or { css, paths } objects that only apply on the listed URL paths —
+  // e.g. Weibo's home-feed scroller class also appears on profile pages,
+  // which must keep their own posts visible.
+  function activeSelectors() {
+    return (site.selectors ?? [])
+      .filter(
+        (s) =>
+          typeof s === "string" ||
+          !s.paths ||
+          s.paths.includes(location.pathname),
+      )
+      .map((s) => (typeof s === "string" ? s : s.css));
+  }
+
   // ─── CSS strategy ────────────────────────────────────────────────────────────
 
   function injectCSS() {
-    if (
-      (!site.selectors?.length && !site.extraCSS) ||
-      document.getElementById(STYLE_ID)
-    )
-      return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    const selectorCSS = (site.selectors ?? [])
+    const selectorCSS = activeSelectors()
       .map((s) =>
         site.collapseChildren
           ? `${s}>*{display:none!important}`
           : `${s}{display:none!important}`,
       )
       .join("");
-    style.textContent = selectorCSS + (site.extraCSS ?? "");
-    document.documentElement.appendChild(style);
+    const cssText = selectorCSS + (site.extraCSS ?? "");
+    if (!cssText) {
+      removeCSS();
+      return;
+    }
+    let style = document.getElementById(STYLE_ID);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      document.documentElement.appendChild(style);
+    }
+    // Path-scoped selectors mean the rules can change across SPA navigations
+    // (apply() re-runs on every path change); rewrite only on actual change.
+    if (style.textContent !== cssText) style.textContent = cssText;
   }
 
   function removeCSS() {
@@ -134,7 +154,7 @@
   // ─── Remove strategy ─────────────────────────────────────────────────────────
 
   function removeMatchingIn(root) {
-    for (const sel of site.selectors) {
+    for (const sel of activeSelectors()) {
       try {
         root.querySelectorAll(sel).forEach((el) => el.remove());
       } catch {}
@@ -146,10 +166,11 @@
     activelyRemoving = true;
     removeMatchingIn(document);
     removalObserver = new MutationObserver((mutations) => {
+      const sels = activeSelectors();
       for (const { addedNodes } of mutations) {
         for (const node of addedNodes) {
           if (node.nodeType !== 1) continue;
-          for (const sel of site.selectors) {
+          for (const sel of sels) {
             try {
               if (node.matches(sel)) {
                 node.remove();

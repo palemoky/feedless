@@ -4,8 +4,12 @@
 // nameIntl:  (optional) international name shown in all other locales
 // category:  'video' | 'social' | 'shopping' | 'other'
 // hostnames: list of hostnames (with or without www)
-// selectors: CSS selectors for recommendation containers to block
-// paths:     (optional) only apply on these URL paths; omit to apply everywhere
+// selectors: CSS selectors for recommendation containers to block. Each entry
+//            is a selector string, or { css, paths } to apply that selector
+//            only on the given URL paths (e.g. block a feed class on the home
+//            page without touching profile pages that reuse the same class).
+// paths:     (optional) only apply the whole site config on these URL paths;
+//            omit to apply everywhere
 // strategy:  'css' (default) hides via CSS display:none
 //            'remove' physically removes nodes from the DOM
 //            'spacer'  replaces the feed container with a fixed-height placeholder so
@@ -126,7 +130,9 @@ const SITES = [
     // virtual-scroll / IntersectionObserver infinite-load loops.
     collapseChildren: true,
     selectors: [
-      ".vue-recycle-scroller__item-wrapper", // 主页推荐
+      // 主页推荐流。个人主页 (/u/...) 的微博列表复用同一个虚拟滚动类名，
+      // 所以按路径限定只在首页生效，避免把别人主页的内容也屏蔽掉。
+      { css: ".vue-recycle-scroller__item-wrapper", paths: ["/"] },
       ".recommend", // 视频页推荐
       "#__sidebar", // 个人主页右侧热榜与推荐
     ],

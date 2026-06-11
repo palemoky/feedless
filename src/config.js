@@ -2,4 +2,4 @@
 // of blocked pages — handy for verifying reminder scheduling during development.
 // Reminder intervals themselves are unaffected (always the production minutes).
 // Switch to false before publishing.
-const DEV_MODE = false;
+const DEV_MODE = true;
