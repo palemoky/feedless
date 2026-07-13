@@ -1,5 +1,8 @@
 // Simulation harness for src/background.js: fake chrome.* APIs + virtual clock.
-// Replays event sequences to hunt for the "30s countdown, no popup" stuck state.
+// Exercises the "only the engaged (focused-window's active) tab counts down"
+// model: switching between two sites of the same category is a no-op for the
+// timer, switching away/closing pauses it, and resuming within the frozen
+// remaining time continues rather than resets.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -45,6 +48,8 @@ function makeStorageArea() {
 // tab: { id, url, windowId, active }
 let tabs = [];
 const sentMessages = []; // { t, tabId, msg }
+const staleTabIds = new Set(); // tabs whose content script is "dead" until re-injected
+const injectionLog = []; // { t, tabId } from chrome.scripting.executeScript
 
 const listeners = {
   onActivated: [],
@@ -60,6 +65,8 @@ const listeners = {
 // ─── fake alarms ─────────────────────────────────────────────────────────────
 let alarms = {}; // name -> fireAtMs
 
+let FOCUSED_WINDOW = 1;
+
 const chrome = {
   storage: { session: makeStorageArea(), sync: makeStorageArea() },
   tabs: {
@@ -67,6 +74,7 @@ const chrome = {
       let res = tabs.slice();
       if (q.active) res = res.filter((t) => t.active);
       if (q.currentWindow) res = res.filter((t) => t.windowId === FOCUSED_WINDOW);
+      if (q.lastFocusedWindow) res = res.filter((t) => t.windowId === FOCUSED_WINDOW);
       if (q.windowId !== undefined) res = res.filter((t) => t.windowId === q.windowId);
       if (cb) { cb(res); return; }
       return Promise.resolve(res);
@@ -76,6 +84,11 @@ const chrome = {
       return t ? Promise.resolve({ ...t }) : Promise.reject(new Error("no tab"));
     },
     sendMessage(tabId, msg) {
+      // Tabs left open across a simulated extension reload keep a dead content
+      // script until chrome.scripting.executeScript "revives" them below.
+      if (staleTabIds.has(tabId)) {
+        return Promise.reject(new Error("Receiving end does not exist."));
+      }
       sentMessages.push({ t: NOW, tabId, msg });
       return Promise.resolve();
     },
@@ -83,17 +96,29 @@ const chrome = {
     onUpdated: { addListener: (f) => listeners.onUpdated.push(f) },
     onRemoved: { addListener: (f) => listeners.onRemoved.push(f) },
   },
+  scripting: {
+    executeScript({ target: { tabId } }) {
+      injectionLog.push({ t: NOW, tabId });
+      staleTabIds.delete(tabId);
+      return Promise.resolve();
+    },
+  },
   alarms: {
     create(name, info) {
-      alarms[name] = NOW + info.delayInMinutes * 60 * 1000;
+      alarms[name] = info.when ?? NOW + (info.delayInMinutes || 0) * 60 * 1000;
     },
     clear(name) {
+      const existed = name in alarms;
       delete alarms[name];
-      return Promise.resolve(true);
+      return Promise.resolve(existed);
+    },
+    get(name) {
+      if (!(name in alarms)) return Promise.resolve(undefined);
+      return Promise.resolve({ name, scheduledTime: alarms[name] });
     },
     getAll() {
       return Promise.resolve(
-        Object.keys(alarms).map((name) => ({ name })),
+        Object.entries(alarms).map(([name, scheduledTime]) => ({ name, scheduledTime })),
       );
     },
     onAlarm: { addListener: (f) => listeners.onAlarm.push(f) },
@@ -108,8 +133,6 @@ const chrome = {
     onFocusChanged: { addListener: (f) => listeners.onFocusChanged.push(f) },
   },
 };
-
-let FOCUSED_WINDOW = 1;
 
 // ─── load background.js in a sandbox ─────────────────────────────────────────
 const sandbox = {
@@ -143,6 +166,14 @@ async function fireOnUpdated(tabId) {
 }
 async function fireOnRemoved(tabId) {
   for (const f of listeners.onRemoved) f(tabId);
+  await settle();
+}
+async function fireOnMessage(msg) {
+  for (const f of listeners.onMessage) f(msg);
+  await settle();
+}
+async function fireOnFocusChanged(windowId) {
+  for (const f of listeners.onFocusChanged) f(windowId);
   await settle();
 }
 
@@ -191,22 +222,25 @@ async function closeTab(tab, { thenActivate } = {}) {
   await fireOnRemoved(tab.id);
   if (thenActivate) await fireOnActivated(thenActivate.id);
 }
-async function focusWindow(id) {
-  FOCUSED_WINDOW = id;
-  for (const f of listeners.onFocusChanged) f(id);
-  await settle();
+async function focusWindow(windowId) {
+  FOCUSED_WINDOW = windowId;
+  await fireOnFocusChanged(windowId);
 }
 
 function state(label) {
-  const s = chrome.storage.session._data;
   const alarmList = Object.entries(alarms)
     .map(([n, at]) => `${n}@+${((at - NOW) / 1000).toFixed(0)}s`)
     .join(", ");
+  const paused = Object.entries(chrome.storage.session._data)
+    .filter(([k]) => k.startsWith("feedless_paused_"))
+    .map(([k, v]) => `${k.slice("feedless_paused_".length)}:${(v.remainingMs / 1000).toFixed(0)}s@${v.pausedAt}`)
+    .join(", ");
+  const engaged = chrome.storage.session._data.feedless_engaged || "none";
   realLog(`── ${label}`);
-  realLog(`   session: ${JSON.stringify(s)}`);
-  realLog(`   alarms:  [${alarmList || "none"}]`);
+  realLog(`   alarms:  [${alarmList || "none"}]   engaged: ${engaged}   paused: [${paused || "none"}]`);
   const reminds = sentMessages.filter((m) => m.msg.type === "feedless:remind");
   realLog(`   reminds so far: ${reminds.length}`);
+  realLog(`   reinjections: ${injectionLog.length}`);
 }
 
 // ─── run a scenario ──────────────────────────────────────────────────────────
@@ -223,97 +257,151 @@ function state(label) {
 
   if (scenario === "basic") {
     const v = await openTab("https://www.bilibili.com/video/abc");
-    state("opened video tab");
+    state("opened+activated video tab");
     await advance(600);
     state("after 10 min (alarm should have fired + popup)");
     await advance(600);
     state("after 20 min");
   }
 
-  if (scenario === "close-reopen") {
-    // Watch 9.5 min, close, reopen within grace, repeatedly.
+  if (scenario === "spec-example") {
+    // 30 min interval, watch 20 min, close all tabs, come back within the
+    // remaining 10 min -> continues; come back after more than 10 min ->
+    // resets to full 30 min.
+    await chrome.storage.sync.set({ reminderIntervals: { video: 1800 } });
+
     let v = await openTab("https://www.bilibili.com/video/abc");
-    await advance(570); // 9.5 min watched
-    const blank = await openTab("about:blank"); // user goes elsewhere
+    await advance(1200); // 20 min watched
     await closeTab(v);
-    state("closed video tab after 9.5min");
-    await advance(60); // 1 min away (< grace)
+    state("closed all video tabs after 20 min (10 min should remain, paused)");
+
     v = await openTab("https://www.bilibili.com/video/abc2");
-    state("reopened video (should be ~30s remaining)");
-    await advance(35);
-    state("35s later — did reminder fire?");
-    await advance(600);
-    state("10 more min later");
+    state("reopened after a short gap (well within the 10 min left) — resumed");
+    await advance(9 * 60);
+    state("9 more min pass — no popup yet (~1 min left)");
+    await advance(61);
+    state("61s more — popup should have fired now, fresh 30 min cycle started");
+
+    await closeTab(v);
+    state("closed again");
+    await advance(1800 + 1); // way more than any remaining budget
+    state("stayed away over 30 min while closed — budget should be considered spent");
+    v = await openTab("https://www.bilibili.com/video/abc3");
+    state("reopened after the long gap — must start a fresh full 30 min cycle");
+    await advance(1799);
+    state("29:59 later — should not have fired yet");
+    await advance(2);
+    state("30:01 later — should fire now");
   }
 
-  if (scenario === "two-windows-close-tracked") {
-    // Window 1: video tab (tracked). Window 2: another video tab.
+  if (scenario === "cross-site-same-category") {
+    // Switching between two different ACTIVE sites of the same category
+    // (the reported YouTube <-> Bilibili bug) must never reset or pause.
+    const yt = await openTab("https://www.youtube.com/watch?v=a");
+    await advance(300); // 5 min on YouTube
+    const bili = await openTab("https://www.bilibili.com/video/b");
+    state("switched to Bilibili after 5 min on YouTube (still same category)");
+    await advance(299);
+    state("9:59 total — should not fire yet");
+    await advance(1);
+    state("10:00 total — should fire now, on the currently active (Bilibili) tab");
+  }
+
+  if (scenario === "switch-away-inactive-tab") {
+    // The behaviour this whole model exists for: a video tab left OPEN but
+    // not active/focused must NOT keep counting down.
+    const v = await openTab("https://www.bilibili.com/video/a");
+    await advance(300); // watch 5 min
+    const other = await openTab("https://example.com/"); // switch away, video tab stays open in background
+    state("switched to an unrelated tab after 5 min — video timer should pause with 5 min left");
+    await advance(1200); // 20 min pass while working elsewhere
+    state("20 min pass on the other tab — must NOT have fired (was paused)");
+    await switchToTab(v);
+    state("switched back to the (still open) video tab — 20 min away > 5 min left, so reset to full 10 min");
+    await advance(599);
+    state("9:59 after return — should not have fired yet");
+    await advance(2);
+    state("10:01 after return — should fire now");
+  }
+
+  if (scenario === "switch-away-and-back-within-grace") {
+    // Pausing freezes the remaining time; it is not decremented by how long
+    // the user was away, as long as they return within that same window
+    // (mirrors the spec's "return within the remaining 10 min -> the 10 min
+    // continues" example). So resuming after 20s away with 30s frozen still
+    // leaves 30s, not 10s.
+    const v = await openTab("https://www.bilibili.com/video/a");
+    await advance(570); // 9.5 min watched, 30s left
+    const other = await openTab("https://example.com/");
+    state("switched away with 30s left");
+    await advance(20); // 20s away, within the 30s grace
+    await switchToTab(v);
+    state("switched back after 20s — should resume with the full 30s still left");
+    await advance(29);
+    state("29s later — should not have fired yet");
+    await advance(2);
+    state("31s later — should fire now");
+  }
+
+  if (scenario === "two-windows-background-active-tab") {
+    // Window 1 (focused): video tab, engaged. Window 2 (unfocused): another
+    // video tab that is *active within its own window* but not focused —
+    // must not itself drive the timer (only the focused window's active tab
+    // does), yet still receives the popup if the reminder does fire.
     const v1 = await openTab("https://www.bilibili.com/video/a", { windowId: 1 });
     const v2 = await openTab("https://www.youtube.com/watch?v=b", { windowId: 2 });
-    state("two windows, both video; tracked = v2 (last activated)");
-    await advance(120);
-    // user closes window 2 (its only tab) — no onActivated follows
-    await closeTab(v2);
+    // openTab(activate:true) focuses window 2, so it's now the engaged one.
     await focusWindow(1);
-    state("closed window-2 video tab (tracked)");
+    state("window 1 (bilibili) refocused — engaged again after brief pause");
     await advance(600);
-    state("10 min later, still watching window-1 video — popup?");
-    // user finally clicks another video in window 1 (same tab navigation)
-    await fireOnUpdated(v1.id);
-    state("after in-tab navigation");
-    await advance(35);
-    state("35s later — popup?");
+    state("10 min later — popup should show on both v1 and v2 (both active tabs)");
   }
 
-  if (scenario === "fire-no-targets") {
-    // alarm fires while no video tab is active in any window
-    const v1 = await openTab("https://www.bilibili.com/video/a", { windowId: 1 });
+  if (scenario === "all-tabs-closed-no-return") {
+    const v = await openTab("https://www.bilibili.com/video/a");
     await advance(60);
-    // window 2 exists with a non-video tab; user focuses it (no event fires
-    // for window focus). Make window-1 video tab inactive via direct mutation
-    // to emulate cases where the tab is not active in its window at fire time.
-    const g = { id: nextTabId++, url: "https://example.com/", windowId: 2, active: true };
-    tabs.push(g);
-    v1.active = false; // e.g. devtools/picture-in-picture edge, or stale state
-    FOCUSED_WINDOW = 2; // silent focus move (no event), worst case
-    await advance(540);
-    state("alarm fired with no active video tab anywhere");
-    await advance(1200); // 20 min pass, user on example.com
-    // user opens a new video tab in window 2
-    const v3 = await openTab("https://www.bilibili.com/video/c", { windowId: 2 });
-    state("opened new video tab after 20 min away");
-    await advance(35);
-    state("35s later — popup?");
-    await advance(120);
-    state("2 min more");
+    await closeTab(v);
+    state("closed only video tab after 1 min (9 min should remain, paused)");
+    await advance(600);
+    state("well past the 9 min remaining with nobody around — no popup");
   }
 
-  if (scenario === "window-switch") {
-    // Window 1: video. Window 2: non-tracked site. User flips focus between
-    // windows — previously this banked away-time into the video budget.
-    const v1 = await openTab("https://www.bilibili.com/video/a", { windowId: 1 });
-    const g = await openTab("https://example.com/", { windowId: 2 });
-    await switchToTab(v1); // back to video, window 1
-    await focusWindow(1);
-    await advance(300); // watch 5 min
-    await focusWindow(2); // work in window 2 for 20 min
-    state("focused non-video window after 5 min of video");
-    await advance(1200);
-    await focusWindow(1); // back to the video window
-    state("refocused video window after 20 min away (budget should be reset by grace)");
-    await advance(620);
-    state("10+ min later — popup?");
+  if (scenario === "disabled-site") {
+    await chrome.storage.sync.set({ disabledSites: ["bilibili"] });
+    await openTab("https://www.bilibili.com/video/abc");
+    state("opened disabled site's video tab — no countdown should start");
+    await advance(600);
+    state("10 min later — still nothing, by design");
   }
 
-  if (scenario === "rapid-reopen") {
-    // accumulated >= interval; user keeps opening pages every ~20s
+  if (scenario === "settings-change-resets-fresh") {
+    const v = await openTab("https://www.bilibili.com/video/a");
+    await advance(300); // 5 of 10 min elapsed
+    await chrome.storage.sync.set({ reminderIntervals: { video: 120 } });
+    await fireOnMessage({ type: "feedless:reminderUpdate" });
+    state("changed interval to 2 min mid-cycle — should restart fresh at 2 min");
+    await advance(119);
+    state("1:59 after change — should not have fired yet");
+    await advance(2);
+    state("2:01 after change — should fire now");
+  }
+
+  if (scenario === "stale-tab-reload") {
     const v1 = await openTab("https://www.bilibili.com/video/a");
-    await advance(595); // 9:55 — just before fire
-    // navigate in-tab repeatedly (SPA full reloads) every 20s
-    for (let i = 0; i < 6; i++) {
-      await fireOnUpdated(v1.id);
-      await advance(20);
-    }
-    state("after 6 quick navigations 20s apart");
+    staleTabIds.add(v1.id);
+    await advance(600);
+    state("alarm fired at a stale tab — should retry after re-injecting");
+  }
+
+  if (scenario === "reconcile-on-restart") {
+    // Tab already open + focused before the service worker (re)loads must
+    // keep its in-flight countdown across the simulated restart.
+    const v = await openTab("https://www.bilibili.com/video/a");
+    await advance(60);
+    for (const f of listeners.onStartup) f();
+    await settle();
+    state("re-ran startup reconciliation mid-cycle — alarm must be unchanged");
+    await advance(541);
+    state("10 min total — should fire now");
   }
 })();

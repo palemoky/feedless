@@ -367,8 +367,27 @@
       .filter(Boolean)
       .join(";");
     overlay.innerHTML = innerHTML;
-    document.body.appendChild(overlay);
-    setTimeout(() => overlay.remove(), durationMs);
+    // Video sites are most often reminded of while the player is in Fullscreen
+    // API mode, but the fullscreen element is the only thing the browser paints
+    // in that mode — anything appended to document.body (a sibling, not an
+    // ancestor, of the fullscreen element) is composited but never shown. Mount
+    // inside the fullscreen element when one is active so the overlay is
+    // actually visible instead of silently firing with nothing on screen.
+    const mountPoint = document.fullscreenElement || document.body;
+    mountPoint.appendChild(overlay);
+    // If fullscreen is entered/exited while the overlay is up, re-parent so it
+    // keeps rendering wherever the browser is currently painting.
+    const onFullscreenChange = () => {
+      const target = document.fullscreenElement || document.body;
+      if (overlay.isConnected && overlay.parentElement !== target) {
+        target.appendChild(overlay);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    setTimeout(() => {
+      overlay.remove();
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    }, durationMs);
     return overlay;
   }
 

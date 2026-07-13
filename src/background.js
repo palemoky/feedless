@@ -9,113 +9,47 @@ if (typeof importScripts === "function") {
 }
 
 const ALARM_PREFIX = "feedless_reminder_";
-const SESSION_KEY_PREFIX = "reminderTab_";
-const ACCUMULATED_KEY_PREFIX = "accumulated_";
-// Timestamp (ms) the user last left a category (switched away or closed its
-// last tab). The accumulated budget survives short absences — so closing and
-// immediately reopening a site cannot dodge the reminder — but is reset when
-// the user returns after BUDGET_RESET_SECS, which we treat as a real break.
-const LAST_LEFT_KEY_PREFIX = "lastLeft_";
-const BUDGET_RESET_SECS = 5 * 60;
-// Absolute timestamp (ms) each category's reminder is scheduled to fire. The
-// per-tab countdown overlay is derived from this so every tab of the same site
-// shows the same deadline instead of an independently-drifting local snapshot.
-const FIRE_AT_KEY_PREFIX = "fireAt_";
-
-// Send a message to every open tab that belongs to `category`, so multi-tab /
-// multi-window users get a consistent reminder + countdown across all of them
-// rather than only on the single most-recently-active tab. Tabs we lack host
-// permission for have no `url`; those are skipped.
-async function broadcastToCategory(category, message) {
-  let tabs;
-  try {
-    tabs = await chrome.tabs.query({});
-  } catch {
-    return;
-  }
-  for (const tab of tabs) {
-    if (!tab.id || !tab.url) continue;
-    let site;
-    try {
-      site = getSiteByHostname(new URL(tab.url).hostname);
-    } catch {
-      continue;
-    }
-    if (site?.category === category) {
-      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
-    }
-  }
-}
-
-// Tell every category except `keepCategory` to drop its countdown overlay. Used
-// when the active tab changes so stale overlays on other-category tabs clear,
-// without racing the fresh countdownStart we send for the new category.
-async function broadcastCountdownStop(keepCategory) {
-  const categories = [...new Set(SITES.map((s) => s.category))];
-  for (const c of categories) {
-    if (c === keepCategory) continue;
-    broadcastToCategory(c, { type: "feedless:countdownStop" });
-  }
-}
+const PAUSED_KEY_PREFIX = "feedless_paused_";
+const ENGAGED_KEY = "feedless_engaged";
 
 // chrome.alarms silently clamps any delay below ~30s (and logs a warning for
-// unpacked builds). When the user switches back to a site having already spent
-// almost the whole interval, the remaining time can be just a few seconds; pin
-// it to this floor so behaviour is explicit and predictable instead of relying
-// on Chrome's hidden clamp.
+// unpacked builds). Pin a floor so behaviour is explicit and predictable
+// instead of relying on Chrome's hidden clamp.
 const MIN_ALARM_SECS = 30;
 
-// Which category is currently active and when it started, persisted to session
-// storage so an idle service-worker restart does not lose the elapsed time.
-// Shape: { category, start } where start is Date.now() when it became active.
-const ACTIVE_KEY = "feedless_active";
-
-async function getActive() {
-  const data = await chrome.storage.session.get(ACTIVE_KEY);
-  return data[ACTIVE_KEY] || null;
-}
-
-async function setActive(category, start) {
-  await chrome.storage.session.set({ [ACTIVE_KEY]: { category, start } });
-}
-
-async function clearActive() {
-  await chrome.storage.session.remove(ACTIVE_KEY);
-}
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.sync.get(
-    { disabledSites: [], reminderIntervals: {} },
-    () => {},
-  );
-  reconcileActiveTab();
-});
-
-// Re-establish the reminder for the current tab. Called when the service
-// worker (re)starts so a reload/restart resumes reminders without waiting for
-// the next tab switch. Skips if a schedule is already in place, to avoid
-// resetting a running cycle on a routine worker wake-up.
-async function reconcileActiveTab() {
-  const alarms = await chrome.alarms.getAll();
-  const hasReminder = alarms.some((a) => a.name.startsWith(ALARM_PREFIX));
-  const active = await getActive();
-  if (hasReminder || active?.category) return;
-
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  if (activeTab?.id) await queueActiveTabChange(activeTab.id);
-}
-
-// Browser startup and plain worker wake-ups both run the top-level script;
-// onStartup covers browser launch, and the direct call covers extension reload.
-chrome.runtime.onStartup.addListener(reconcileActiveTab);
-reconcileActiveTab();
-
-function getSiteByHostname(hostname) {
-  return findSiteByHostname(hostname);
-}
+// ─── Model ──────────────────────────────────────────────────────────────────
+// Only one category can be "engaged" at a time: the category of the site
+// showing in the currently active tab of the currently focused window. A
+// category's timer only counts down while it is engaged; switching away
+// (to a different category, a untracked site, or another window) pauses it,
+// and switching between two sites of the *same* category (e.g. YouTube <->
+// Bilibili) is not a change of engaged category at all, so it is a total
+// no-op for the timer — this is what fixes the countdown resetting/jumping
+// when hopping between same-category sites.
+//
+// State is intentionally minimal and lives in two places only:
+//  - chrome.alarms: the alarm named ALARM_PREFIX+category exists iff that
+//    category is *currently engaged and counting down*; its scheduledTime is
+//    the absolute moment (ms) the reminder is due.
+//  - chrome.storage.session[PAUSED_KEY_PREFIX+category]: set only while that
+//    category is paused (not engaged) but still has unspent budget from its
+//    last engaged stretch — { remainingMs, pausedAt }. Absent otherwise.
+// There is no separate "elapsed time" accumulator: every earlier version of
+// this feature that tracked elapsed time apart from the actual timer
+// eventually drifted out of sync with it, which is what produced the
+// "stuck at 30s" / "resets on tab switch" bugs.
+//
+// Pause -> resume rule (applied uniformly whether the tab was merely
+// switched away from, its window lost focus, or every tab of the category
+// was closed): remainingMs is frozen at the moment of pausing. If the
+// category becomes engaged again before remainingMs has elapsed in real
+// time, the countdown continues from exactly where it left off. If more
+// real time than remainingMs passes first, the budget is discarded and the
+// next engagement starts a fresh full interval.
+//
+// When the alarm fires while engaged: the reminder is shown on every
+// currently-active tab of the category (across all windows), and the timer
+// restarts fresh for a full interval, still engaged.
 
 async function getSettings() {
   return new Promise((resolve) =>
@@ -126,260 +60,21 @@ async function getSettings() {
   );
 }
 
-async function getSiteForTab(tabId) {
+function getSiteByHostname(hostname) {
+  return findSiteByHostname(hostname);
+}
+
+function siteForUrl(url) {
   try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab?.url) return null;
-    return getSiteByHostname(new URL(tab.url).hostname);
+    return getSiteByHostname(new URL(url).hostname);
   } catch {
     return null;
   }
 }
 
-async function getAccumulated(category) {
-  const data = await chrome.storage.session.get(
-    ACCUMULATED_KEY_PREFIX + category,
-  );
-  return data[ACCUMULATED_KEY_PREFIX + category] || 0;
-}
-
-async function addAccumulated(category, seconds) {
-  const current = await getAccumulated(category);
-  await chrome.storage.session.set({
-    [ACCUMULATED_KEY_PREFIX + category]: current + seconds,
-  });
-}
-
-async function resetAccumulated(category) {
-  await chrome.storage.session.remove(ACCUMULATED_KEY_PREFIX + category);
-}
-
-async function getLastLeft(category) {
-  const data = await chrome.storage.session.get(
-    LAST_LEFT_KEY_PREFIX + category,
-  );
-  return data[LAST_LEFT_KEY_PREFIX + category] || 0;
-}
-
-async function setLastLeft(category, timestamp) {
-  await chrome.storage.session.set({
-    [LAST_LEFT_KEY_PREFIX + category]: timestamp,
-  });
-}
-
-// Reset the category's budget if the user has been away longer than the grace
-// period. Called when a category becomes active again; a fresh leave stamp is
-// written on every switch away, so continuous use never trips this.
-async function expireStaleBudget(category) {
-  const lastLeft = await getLastLeft(category);
-  if (lastLeft && Date.now() - lastLeft >= BUDGET_RESET_SECS * 1000) {
-    await resetAccumulated(category);
-  }
-}
-
-// Save elapsed time for the active category to session storage.
-async function saveCurrentCategoryElapsed() {
-  const active = await getActive();
-  if (!active?.category || !active.start) return;
-  const elapsed = (Date.now() - active.start) / 1000;
-  await addAccumulated(active.category, elapsed);
-  await setLastLeft(active.category, Date.now());
-  await clearActive();
-}
-
-async function scheduleReminder(category, tabId, remainingSecs) {
-  chrome.storage.session.set({ [SESSION_KEY_PREFIX + category]: tabId });
-
-  // The alarm cannot fire sooner than MIN_ALARM_SECS, so the countdown must
-  // count down to the *effective* fire time — otherwise it would hit 0 and then
-  // hang while the clamped alarm finishes.
-  const delaySecs = Math.max(remainingSecs, MIN_ALARM_SECS);
-  const fireAt = Date.now() + delaySecs * 1000;
-  await chrome.storage.session.set({ [FIRE_AT_KEY_PREFIX + category]: fireAt });
-
-  // In DEV_MODE, show a live countdown overlay. Purely visual: the reminder
-  // always fires from chrome.alarms, which persists across worker restarts
-  // (setTimeout would not). Broadcast to every tab of this category so multiple
-  // same-site tabs stay in sync instead of each running its own clock.
-  if (DEV_MODE) {
-    broadcastToCategory(category, { type: "feedless:countdownStart", fireAt });
-  }
-
-  chrome.alarms.create(ALARM_PREFIX + category, {
-    delayInMinutes: delaySecs / 60,
-  });
-}
-
-async function handleReminderFired(category) {
-  const { disabledSites, reminderIntervals } = await getSettings();
-  const interval = reminderIntervals[category] || 0;
-
-  // Find every foreground tab (one per window) that currently shows a site in
-  // this category. Checking tab.active per window — rather than only the single
-  // tracked tab — means the reminder shows wherever the user is actually
-  // looking, even if they switched between multiple same-site tabs or windows.
-  let tabs;
-  try {
-    tabs = await chrome.tabs.query({ active: true });
-  } catch {
-    tabs = [];
-  }
-  const targets = [];
-  for (const tab of tabs) {
-    if (!tab.id || !tab.url) continue;
-    let site;
-    try {
-      site = getSiteByHostname(new URL(tab.url).hostname);
-    } catch {
-      continue;
-    }
-    if (site?.category === category && !disabledSites.includes(site.id)) {
-      targets.push(tab.id);
-    }
-  }
-
-  if (!interval || targets.length === 0) {
-    // The interval fully elapsed but the user isn't looking at this category
-    // (e.g. focus moved to another window, which fires no tab event). Consume
-    // the cycle exactly as a shown reminder would: reset the budget and stop
-    // the running stretch. Leaving `active` set here would silently bank all
-    // the away time into the budget and re-stamp lastLeft on every return, so
-    // the grace period could never expire it — every later visit would start
-    // with an exhausted budget.
-    await resetAccumulated(category);
-    const active = await getActive();
-    if (active?.category === category) await clearActive();
-    await setLastLeft(category, Date.now());
-    chrome.storage.session.remove([
-      SESSION_KEY_PREFIX + category,
-      FIRE_AT_KEY_PREFIX + category,
-    ]);
-    // Background tabs of this category may still show a countdown pinned at 0.
-    if (DEV_MODE) broadcastToCategory(category, { type: "feedless:countdownStop" });
-    return;
-  }
-
-  // Reset accumulated time and restart the cycle from now.
-  await resetAccumulated(category);
-  await setActive(category, Date.now());
-
-  for (const id of targets) {
-    chrome.tabs.sendMessage(id, { type: "feedless:remind" }).catch(() => {});
-  }
-
-  // Keep tracking the previously-scheduled tab if it's still a valid target,
-  // otherwise fall back to the first foreground tab we found.
-  const data = await chrome.storage.session.get(SESSION_KEY_PREFIX + category);
-  const tracked = data[SESSION_KEY_PREFIX + category];
-  const nextTab = targets.includes(tracked) ? tracked : targets[0];
-  await scheduleReminder(category, nextTab, interval);
-}
-
-async function clearAllReminderAlarms() {
-  const alarms = await chrome.alarms.getAll();
-  for (const alarm of alarms) {
-    if (alarm.name.startsWith(ALARM_PREFIX)) chrome.alarms.clear(alarm.name);
-  }
-  const categories = [...new Set(SITES.map((s) => s.category))];
-  chrome.storage.session.remove([
-    ...categories.map((cat) => SESSION_KEY_PREFIX + cat),
-    ...categories.map((cat) => FIRE_AT_KEY_PREFIX + cat),
-  ]);
-}
-
-async function onActiveTabChange(tabId) {
-  // Save elapsed time for the previous category before switching.
-  await saveCurrentCategoryElapsed();
-
-  await clearAllReminderAlarms();
-
-  const site = await getSiteForTab(tabId);
-  if (!site) {
-    // Left all tracked sites — drop every countdown overlay.
-    if (DEV_MODE) await broadcastCountdownStop(null);
-    return;
-  }
-
-  const { disabledSites, reminderIntervals } = await getSettings();
-  const interval = reminderIntervals[site.category] || 0;
-  if (interval <= 0) {
-    if (DEV_MODE) await broadcastCountdownStop(null);
-    return;
-  }
-
-  // Schedule based on remaining time for this category, first dropping any
-  // budget left over from a visit that ended more than the grace period ago.
-  await expireStaleBudget(site.category);
-  const accumulated = await getAccumulated(site.category);
-  const remaining = interval - accumulated;
-
-  await setActive(site.category, Date.now());
-
-  if (remaining <= 0) {
-    // Budget already exhausted: remind right away instead of arming a clamped
-    // 30s alarm. The alarm floor made an exhausted budget show a 30s countdown
-    // on every visit, and any navigation inside those 30s re-armed the alarm —
-    // so a user clicking between videos could postpone the reminder forever.
-    // handleReminderFired resets the budget and schedules the next full cycle.
-    await handleReminderFired(site.category);
-  } else {
-    await scheduleReminder(site.category, tabId, remaining);
-  }
-  // Clear countdowns left over on other categories (the lines above already
-  // (re)started this category's countdown, so don't stop it here).
-  if (DEV_MODE) await broadcastCountdownStop(site.category);
-}
-
-// Extension event listeners run concurrently: a tab switch plus navigation
-// fires onActivated and onUpdated almost simultaneously, and both would read
-// the same active.start and bank the same elapsed stretch twice — doubling the
-// accumulated budget and making reminders fire far too early. Funnel every
-// state-mutating handler through one promise chain so they run one at a time.
-let stateChain = Promise.resolve();
-function serialized(fn) {
-  return (...args) => {
-    stateChain = stateChain.then(() => fn(...args)).catch(() => {});
-    return stateChain;
-  };
-}
-
-const queueActiveTabChange = serialized(onActiveTabChange);
-
-chrome.tabs.onActivated.addListener(({ tabId }) => {
-  queueActiveTabChange(tabId);
-});
-
-// Switching between Chrome windows fires no tab event, so without this the
-// previous window's category kept "running" while the user worked elsewhere —
-// the away time was silently banked into its budget and every visit started
-// with the budget exhausted (a permanent 30s countdown). Treat a window switch
-// exactly like a tab switch: bank the old stretch, reschedule for whatever the
-// newly focused window shows. Focus loss to another app (WINDOW_ID_NONE) is
-// deliberately ignored: a video may keep playing while the user takes notes,
-// and the running cycle still fires on that window's active tab.
-chrome.windows.onFocusChanged.addListener(
-  serialized(async (windowId) => {
-    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
-    let tab;
-    try {
-      [tab] = await chrome.tabs.query({ active: true, windowId });
-    } catch {
-      return;
-    }
-    if (tab?.id) await onActiveTabChange(tab.id);
-  }),
-);
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== "complete") return;
-  chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
-    if (activeTab?.id === tabId) queueActiveTabChange(tabId);
-  });
-});
-
-// Still-open tabs belonging to `category`, excluding `excludeTabId`
-// (the tab currently being removed, which may still appear in queries).
-async function getCategoryTabs(category, excludeTabId) {
+// All currently open tabs whose site belongs to `category`, paired with their
+// site, regardless of whether the tab is active/visible.
+async function categoryTabs(category) {
   let tabs;
   try {
     tabs = await chrome.tabs.query({});
@@ -388,64 +83,243 @@ async function getCategoryTabs(category, excludeTabId) {
   }
   const matches = [];
   for (const tab of tabs) {
-    if (!tab.id || tab.id === excludeTabId || !tab.url) continue;
-    try {
-      if (getSiteByHostname(new URL(tab.url).hostname)?.category === category) {
-        matches.push(tab);
-      }
-    } catch {}
+    if (!tab.id || !tab.url) continue;
+    const site = siteForUrl(tab.url);
+    if (site?.category === category) matches.push({ tab, site });
   }
   return matches;
 }
 
-chrome.tabs.onRemoved.addListener(
-  serialized(async (tabId) => {
-    const data = await chrome.storage.session.get(null);
-    for (const [key, val] of Object.entries(data)) {
-      if (key.startsWith(SESSION_KEY_PREFIX) && val === tabId) {
-        const category = key.slice(SESSION_KEY_PREFIX.length);
-        // Only kill the alarm when no tab of the category survives. If the
-        // tracked tab dies while siblings remain (e.g. closing one of several
-        // video windows), retarget the bookkeeping key and let the running
-        // alarm fire — clearing it here left the surviving tabs with a dead
-        // countdown and no reminder until the next tab event.
-        const [sibling] = await getCategoryTabs(category, tabId);
-        if (sibling) {
-          chrome.storage.session.set({ [key]: sibling.id });
-        } else {
-          chrome.alarms.clear(ALARM_PREFIX + category);
-          chrome.storage.session.remove([key, FIRE_AT_KEY_PREFIX + category]);
-        }
-      }
-    }
+// Same as categoryTabs, minus tabs whose site is individually disabled — those
+// don't count toward "is anyone here" and shouldn't receive a reminder.
+async function eligibleCategoryTabs(category, disabledSites) {
+  const all = await categoryTabs(category);
+  return all.filter(({ site }) => !disabledSites.includes(site.id));
+}
 
-    // Budget bookkeeping must not depend on the tracked-tab key above: that key
-    // is wiped on every tab switch, so a category tab closed while another site
-    // was focused would otherwise leak its accumulated budget for the whole
-    // session and surface hours later as a near-instant reminder. Instead, for
-    // every category with a banked or running budget, detect "last tab closed"
-    // directly and stamp the leave time. The budget is then kept across a quick
-    // close-and-reopen (which previously reset it, letting users dodge the
-    // reminder) and expires via the grace period on the next visit.
-    const active = await getActive();
-    const categories = new Set(
-      Object.keys(data)
-        .filter((key) => key.startsWith(ACCUMULATED_KEY_PREFIX))
-        .map((key) => key.slice(ACCUMULATED_KEY_PREFIX.length)),
-    );
-    if (active?.category) categories.add(active.category);
+// A tab left open across an extension reload/update keeps its old content
+// script running, but that instance's connection to the extension is severed
+// the moment the new version loads — chrome.tabs.sendMessage to it fails with
+// "Receiving end does not exist" and the reminder would silently never show
+// until the user happens to refresh the page. Re-inject a fresh content
+// script and retry once instead of giving up, so a reload doesn't quietly
+// break reminders (or blocking) for every tab that was already open.
+async function sendReminderWithReinject(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "feedless:remind" });
+    return;
+  } catch {}
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/sites.js", "src/content.js"],
+    });
+    await chrome.tabs.sendMessage(tabId, { type: "feedless:remind" });
+  } catch {}
+}
 
-    for (const category of categories) {
-      if ((await getCategoryTabs(category, tabId)).length > 0) continue;
-      if (active?.category === category) {
-        // Bank the in-progress stretch (this also stamps the leave time).
-        await saveCurrentCategoryElapsed();
-      } else {
-        await setLastLeft(category, Date.now());
-      }
-    }
-  }),
-);
+function computeFireAt(intervalSecs) {
+  const now = Date.now();
+  return Math.max(now + intervalSecs * 1000, now + MIN_ALARM_SECS * 1000);
+}
+
+function armAlarm(category, fireAt) {
+  chrome.alarms.create(ALARM_PREFIX + category, { when: fireAt });
+}
+
+async function stopTimer(category) {
+  await chrome.alarms.clear(ALARM_PREFIX + category);
+}
+
+async function getPaused(category) {
+  const key = PAUSED_KEY_PREFIX + category;
+  const data = await chrome.storage.session.get(key);
+  return data[key] || null;
+}
+
+async function setPaused(category, remainingMs, pausedAt) {
+  await chrome.storage.session.set({
+    [PAUSED_KEY_PREFIX + category]: { remainingMs, pausedAt },
+  });
+}
+
+async function clearPaused(category) {
+  await chrome.storage.session.remove(PAUSED_KEY_PREFIX + category);
+}
+
+async function getEngagedCategory() {
+  const data = await chrome.storage.session.get(ENGAGED_KEY);
+  return data[ENGAGED_KEY] || null;
+}
+
+async function setEngagedCategory(category) {
+  if (category) await chrome.storage.session.set({ [ENGAGED_KEY]: category });
+  else await chrome.storage.session.remove(ENGAGED_KEY);
+}
+
+// Purely visual: broadcast the live countdown (or its removal) to every tab of
+// the category so multiple same-site/same-category tabs stay in sync instead
+// of each running its own clock. Never affects scheduling.
+function broadcastCountdown(entries, fireAt) {
+  if (!DEV_MODE) return;
+  for (const { tab } of entries) {
+    chrome.tabs
+      .sendMessage(tab.id, { type: "feedless:countdownStart", fireAt })
+      .catch(() => {});
+  }
+}
+
+function broadcastCountdownStop(entries) {
+  if (!DEV_MODE) return;
+  for (const { tab } of entries) {
+    chrome.tabs
+      .sendMessage(tab.id, { type: "feedless:countdownStop" })
+      .catch(() => {});
+  }
+}
+
+// Category stops being engaged: freeze however much time was left (if the
+// timer was even running — it might not be, e.g. interval is 0) and drop the
+// alarm. The frozen remainder plus this timestamp is exactly what a later
+// engageCategory() needs to decide resume-vs-reset.
+async function pauseCategory(category) {
+  const alarm = await chrome.alarms.get(ALARM_PREFIX + category);
+  if (!alarm) return;
+  const now = Date.now();
+  await stopTimer(category);
+  await setPaused(category, Math.max(0, alarm.scheduledTime - now), now);
+  broadcastCountdownStop(await categoryTabs(category));
+}
+
+// Category becomes engaged: resume the frozen countdown if we're still
+// within its grace window, otherwise start a fresh full interval. No-op if
+// the category has no configured interval.
+async function engageCategory(category) {
+  const { disabledSites, reminderIntervals } = await getSettings();
+  const interval = reminderIntervals[category] || 0;
+  if (interval <= 0) return;
+
+  const now = Date.now();
+  const paused = await getPaused(category);
+  let fireAt;
+  if (paused) {
+    const elapsedIdle = now - paused.pausedAt;
+    fireAt =
+      elapsedIdle < paused.remainingMs
+        ? now + paused.remainingMs
+        : computeFireAt(interval);
+    await clearPaused(category);
+  } else {
+    const existing = await chrome.alarms.get(ALARM_PREFIX + category);
+    fireAt = existing ? existing.scheduledTime : computeFireAt(interval);
+  }
+  armAlarm(category, fireAt);
+
+  const eligible = await eligibleCategoryTabs(category, disabledSites);
+  broadcastCountdown(eligible, fireAt);
+}
+
+// The site of the active tab in the currently focused window, if any — the
+// single candidate for "engaged category". lastFocusedWindow makes this
+// independent of whichever window last fired an activation event.
+async function getFocusedSite() {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  } catch {
+    return null;
+  }
+  const tab = tabs[0];
+  return tab?.url ? siteForUrl(tab.url) : null;
+}
+
+async function engagedCategoryFor(site, disabledSites, reminderIntervals) {
+  if (!site) return null;
+  if (disabledSites.includes(site.id)) return null;
+  if ((reminderIntervals[site.category] || 0) <= 0) return null;
+  return site.category;
+}
+
+// Re-evaluate which category (if any) is engaged right now and transition
+// only on an actual change. Same-category-to-same-category (including
+// null-to-null) is a deliberate no-op — that's what makes hopping between
+// two sites of one category, or between two untracked pages, invisible to
+// the timer.
+async function checkEngagement() {
+  const { disabledSites, reminderIntervals } = await getSettings();
+  const site = await getFocusedSite();
+  const nextCategory = await engagedCategoryFor(
+    site,
+    disabledSites,
+    reminderIntervals,
+  );
+  const prevCategory = await getEngagedCategory();
+  if (nextCategory === prevCategory) return;
+
+  if (prevCategory) await pauseCategory(prevCategory);
+  if (nextCategory) await engageCategory(nextCategory);
+  await setEngagedCategory(nextCategory);
+}
+
+async function handleReminderFired(category) {
+  const { disabledSites, reminderIntervals } = await getSettings();
+  const interval = reminderIntervals[category] || 0;
+  const engaged = await getEngagedCategory();
+  const eligible = await eligibleCategoryTabs(category, disabledSites);
+
+  if (interval <= 0 || engaged !== category || eligible.length === 0) {
+    // The alarm only runs while engaged, so this is a race (focus moved away
+    // in the instant the alarm fired) rather than the normal path. Treat it
+    // as "went idle with the budget fully spent right now" so the next
+    // engagement starts fresh, and drop engaged state since it no longer
+    // reflects an alarm we still own.
+    await setPaused(category, 0, Date.now());
+    await setEngagedCategory(null);
+    broadcastCountdownStop(await categoryTabs(category));
+    return;
+  }
+
+  // Show the overlay on every currently-active tab of the category, across
+  // all windows — not just the focused one — so a video left playing active
+  // in a second window also gets reminded.
+  const activeTargets = eligible.filter(({ tab }) => tab.active);
+  for (const { tab } of activeTargets) sendReminderWithReinject(tab.id);
+
+  const fireAt = computeFireAt(interval);
+  armAlarm(category, fireAt);
+  broadcastCountdown(eligible, fireAt);
+}
+
+// Extension event listeners can run concurrently (e.g. onActivated and
+// onUpdated firing almost simultaneously for the same navigation). Funnel
+// every state-mutating handler through one promise chain so they run one at a
+// time and never race each other's alarm/session-storage reads and writes.
+let stateChain = Promise.resolve();
+function serialized(fn) {
+  return (...args) => {
+    stateChain = stateChain.then(() => fn(...args)).catch(() => {});
+    return stateChain;
+  };
+}
+
+const allCategories = () => [...new Set(SITES.map((s) => s.category))];
+
+const queueCheckEngagement = serialized(checkEngagement);
+
+// Active tab changed within a window.
+chrome.tabs.onActivated.addListener(() => queueCheckEngagement());
+// Navigation completed in a tab — may have changed which site the (possibly
+// already-active) tab shows.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "complete") queueCheckEngagement();
+});
+// OS focus moved to a different window without changing which tab is active
+// in either window — the only case that fires no tab event at all.
+chrome.windows.onFocusChanged.addListener(() => queueCheckEngagement());
+// Safety net: closing the engaged tab is normally followed by onActivated
+// (browser focuses another tab) or onFocusChanged (window closes), but cover
+// the case where neither follows.
+chrome.tabs.onRemoved.addListener(() => queueCheckEngagement());
 
 const queueReminderFired = serialized(handleReminderFired);
 
@@ -455,18 +329,38 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "feedless:reminderUpdate") {
-    // Reset accumulated times when reminder settings change.
-    const categories = [...new Set(SITES.map((s) => s.category))];
-    chrome.storage.session.remove([
-      ...categories.map((cat) => ACCUMULATED_KEY_PREFIX + cat),
-      ...categories.map((cat) => LAST_LEFT_KEY_PREFIX + cat),
-      ACTIVE_KEY,
-    ]);
-
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      if (tab?.id) queueActiveTabChange(tab.id);
-    });
+const queueSettingsChanged = serialized(async function handleSettingsChanged() {
+  // Interval or disabled-sites changed: drop all timer/pause state and let
+  // checkEngagement rebuild it from scratch under the new settings, so a
+  // changed interval always takes effect as a fresh full countdown.
+  for (const category of allCategories()) {
+    await stopTimer(category);
+    await clearPaused(category);
   }
+  await setEngagedCategory(null);
+  await checkEngagement();
 });
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "feedless:reminderUpdate") queueSettingsChanged();
+});
+
+// Re-derive engagement from the currently focused tab. Called on
+// install/startup/service-worker (re)start so a reload never leaves the
+// timer stuck despite the user still sitting on a tracked tab. Session
+// storage (and therefore engaged/paused state) does not survive a full
+// browser restart, but chrome.alarms do; a stale alarm left over from before
+// such a restart is harmless — checkEngagement will pause it (freezing
+// whatever time happened to be left) if the tab it belongs to isn't the
+// focused one, or leave it running as-is if it still is.
+const queueReconcileAll = serialized(checkEngagement);
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.sync.get(
+    { disabledSites: [], reminderIntervals: {} },
+    () => {},
+  );
+  queueReconcileAll();
+});
+chrome.runtime.onStartup.addListener(queueReconcileAll);
+queueReconcileAll();
