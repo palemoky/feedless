@@ -144,10 +144,14 @@ async function getReminderIntervals() {
 }
 
 function previewReminder() {
+  // Routed through the background page rather than sendMessage'd directly:
+  // it retries with a fresh content-script injection when the current tab's
+  // script is a stale one left over from before the extension last reloaded
+  // (chrome.tabs.sendMessage to it would otherwise fail silently).
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     if (tab?.id) {
-      chrome.tabs
-        .sendMessage(tab.id, { type: "feedless:remind" })
+      chrome.runtime
+        .sendMessage({ type: "feedless:previewReminder", tabId: tab.id })
         .catch(() => {});
     }
   });

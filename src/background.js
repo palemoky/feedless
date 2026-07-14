@@ -112,9 +112,29 @@ async function sendReminderWithReinject(tabId) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["src/sites.js", "src/content.js"],
+      files: ["src/sites.js", "src/reminder-overlay.js", "src/content.js"],
     });
     await chrome.tabs.sendMessage(tabId, { type: "feedless:remind" });
+  } catch {}
+}
+
+// Preview from the popup: unlike a real reminder, this must work on *any*
+// tab regardless of whether its site is one Feedless tracks — the overlay
+// itself doesn't care what page it's on. reminder-overlay.js is self-
+// contained (no sites.js dependency), so it's injected directly rather than
+// going through sendReminderWithReinject's tracked-site content script path.
+// activeTab covers the injection here since it's always triggered by the
+// user clicking a button in the popup.
+async function previewReminderOnTab(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/reminder-overlay.js"],
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => window.__feedlessShowReminder?.(),
+    });
   } catch {}
 }
 
@@ -343,6 +363,12 @@ const queueSettingsChanged = serialized(async function handleSettingsChanged() {
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "feedless:reminderUpdate") queueSettingsChanged();
+  // Routed through here (rather than the popup calling chrome.tabs.sendMessage
+  // directly) so "Preview" works on any tab — including ones Feedless doesn't
+  // track, and ones whose content script is stale after an extension reload.
+  if (msg.type === "feedless:previewReminder" && msg.tabId) {
+    previewReminderOnTab(msg.tabId);
+  }
 });
 
 // Re-derive engagement from the currently focused tab. Called on
